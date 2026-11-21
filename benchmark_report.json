@@ -1,39 +1,121 @@
 {
-  "dataset_summary": {
-    "total_transactions": 15000,
-    "fraud_cases": 20,
-    "fraud_prevalence_pct": 0.13
-  },
-  "model_performance": {
-    "roc_auc": 1.0,
-    "pr_auc": 1.0,
-    "optimal_threshold": 0.69,
-    "f1_at_optimal_threshold": 1.0,
-    "min_business_loss": 0.0,
-    "p95_inference_latency_ms": 10.353,
-    "feature_importances": {
-      "sin_hour": 304,
-      "cos_hour": 229,
-      "log_amount": 370,
-      "amount_deviation_ratio": 113,
-      "velocity_1h": 72,
-      "amount_per_velocity": 285,
-      "log_time_since_last_sec": 226,
-      "geo_distance_km": 212,
-      "device_trust_score": 113,
-      "is_foreign": 0,
-      "cat_merchant_category_Digital_Wallet": 6,
-      "cat_merchant_category_Dining": 56,
-      "cat_merchant_category_Electronics": 124,
-      "cat_merchant_category_Gaming": 9,
-      "cat_merchant_category_Grocery": 16,
-      "cat_merchant_category_Luxury_Jewelry": 0,
-      "cat_merchant_category_Travel": 37
+  "dataset": {
+    "source": "locally generated synthetic transactions; no real or third-party transaction data",
+    "generator": "seeded overlapping probabilistic risk processes with a partially observable late-window attack shift",
+    "total_transactions": 60000,
+    "unique_accounts": 11660,
+    "fraud_cases": 1481,
+    "fraud_prevalence_pct": 2.4683,
+    "split_method": "chronological train (before 2026-02-06), validation (2026-02-06 through 2026-02-17), test (from 2026-02-18); account-disjoint by generator cohort",
+    "account_overlap": {
+      "train_validation": 0,
+      "train_test": 0,
+      "validation_test": 0
+    },
+    "class_counts": {
+      "train": {
+        "transactions": 36073,
+        "accounts": 6987,
+        "legitimate": 35197,
+        "fraud": 876,
+        "prevalence_pct": 2.4284
+      },
+      "validation": {
+        "transactions": 11866,
+        "accounts": 2331,
+        "legitimate": 11565,
+        "fraud": 301,
+        "prevalence_pct": 2.5367
+      },
+      "test": {
+        "transactions": 12061,
+        "accounts": 2342,
+        "legitimate": 11757,
+        "fraud": 304,
+        "prevalence_pct": 2.5205
+      }
+    },
+    "window_bounds": {
+      "train": {
+        "min": "2026-01-01 00:02:00",
+        "max": "2026-02-05 23:59:00"
+      },
+      "validation": {
+        "min": "2026-02-06 00:03:00",
+        "max": "2026-02-17 23:59:00"
+      },
+      "test": {
+        "min": "2026-02-18 00:03:00",
+        "max": "2026-03-01 23:58:00"
+      }
     }
   },
-  "business_sla": {
-    "p95_latency_ms": 10.353,
-    "sla_target_ms": 50.0,
-    "sla_met": true
-  }
+  "training": {
+    "threshold_selection": "validation only; threshold minimizing the stated illustrative costs",
+    "validation_min_business_cost": 727480.0,
+    "feature_importances": {
+      "sin_hour": 173,
+      "cos_hour": 149,
+      "log_amount": 260,
+      "amount_deviation_ratio": 355,
+      "velocity_1h": 88,
+      "amount_per_velocity": 217,
+      "log_time_since_last_sec": 342,
+      "geo_distance_km": 473,
+      "device_trust_score": 424,
+      "is_foreign": 26,
+      "cat_merchant_category_Digital_Wallet": 15,
+      "cat_merchant_category_Dining": 24,
+      "cat_merchant_category_Electronics": 38,
+      "cat_merchant_category_Gaming": 35,
+      "cat_merchant_category_Grocery": 27,
+      "cat_merchant_category_Luxury_Jewelry": 16,
+      "cat_merchant_category_Travel": 10
+    }
+  },
+  "test_performance": {
+    "roc_auc": 0.6718847226512313,
+    "pr_auc": 0.05420911025299517,
+    "f1_at_validation_threshold": 0.0984251968503937,
+    "precision_at_validation_threshold": 0.05787037037037037,
+    "recall_at_validation_threshold": 0.32894736842105265,
+    "threshold": 0.5808896012743519,
+    "predicted_positive_count": 1728,
+    "false_negatives": 204,
+    "false_positives": 1628,
+    "business_cost": 705360.0,
+    "all_approve_baseline_business_cost": 760000.0,
+    "anomaly_overlay": {
+      "rule": "Isolation Forest score_samples < -0.65 OR supervised threshold",
+      "flagged_count": 1,
+      "false_negatives": 204,
+      "false_positives": 1628,
+      "business_cost": 705360.0,
+      "precision": 0.05787037037037037,
+      "recall": 0.32894736842105265,
+      "cost_savings_vs_supervised_pct": 0.0
+    },
+    "p95_model_scoring_latency_ms": 11.753170000156386,
+    "latency_method": "100 in-process single-row model calls; excludes HTTP, network, and infrastructure",
+    "cost_savings_vs_all_approve_pct": 7.19,
+    "average_precision_vs_prevalence": 2.151,
+    "account_clustered_confidence_intervals": {
+      "method": "percentile bootstrap resampling test accounts as clusters",
+      "iterations": 300,
+      "average_precision_95pct_ci": [
+        0.0432,
+        0.0737
+      ],
+      "roc_auc_95pct_ci": [
+        0.6368,
+        0.7022
+      ]
+    }
+  },
+  "cost_assumptions_inr": {
+    "false_negative": 2500.0,
+    "false_positive": 120.0
+  },
+  "latency_scope": "100 in-process single-row model calls; excludes HTTP, network, and infrastructure",
+  "warning": "All evidence is synthetic and generator-dependent; confidence intervals quantify account sampling variation only, not real-world or generator uncertainty. No production utility, zero-day detection, or payment SLA is established."
 }

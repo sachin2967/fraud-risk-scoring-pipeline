@@ -1,15 +1,13 @@
-"""Interactive Streamlit dashboard for real-time fraud risk scoring and cost-sensitive threshold optimization."""
+"""Interactive dashboard for the synthetic fraud-risk scoring demo."""
 
 from pathlib import Path
 import json
 import joblib
-import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 import streamlit as st
 
 st.set_page_config(
-    page_title="Fintech Fraud Risk & Anomaly Scoring Cockpit",
+    page_title="Fraud Risk Scoring Prototype",
     page_icon="💳",
     layout="wide",
 )
@@ -34,10 +32,10 @@ except Exception as e:
     st.stop()
 
 # --- HEADER ---
-st.title("💳 Real-Time Fraud & Anomaly Risk Scoring Cockpit")
+st.title("💳 Fraud Risk Scoring Prototype")
 st.markdown(
-    "**Architecture:** Hybrid Cost-Sensitive LightGBM + Isolation Forest for 99.8% class-imbalanced transaction streams. "
-    "Optimizes for business financial ROI rather than arbitrary 0.5 probability thresholds."
+    "**Educational demo using synthetic data.** Cost-weighted LightGBM plus a heuristic Isolation Forest anomaly flag. "
+    "The score and routing policy are not validated for payment decisions."
 )
 
 st.divider()
@@ -88,8 +86,8 @@ with tab1:
             st.metric("Fraud Risk Probability", f"{res['fraud_probability']*100:.1f}%")
             st.metric("Cost-Optimal Threshold", f"{res['optimal_threshold']*100:.1f}%")
 
-            if res["zero_day_anomaly"]:
-                st.warning("⚠️ Zero-Day Out-of-Distribution Anomaly Flagged (Isolation Forest)")
+            if res["anomaly_flagged"]:
+                st.warning("⚠️ Unusual feature pattern flagged by Isolation Forest (not validated as zero-day fraud)")
             else:
                 st.info("ℹ️ Distribution Pattern Consistent with Training History")
 
@@ -106,62 +104,37 @@ with tab1:
             st.write(f"**Gateway Action:** {res['recommended_action']}")
 
 with tab2:
-    st.subheader("Financial Expected Loss & Optimal Threshold Curve")
+    st.subheader("Illustrative Cost Policy")
     st.markdown("""
-    Standard models use an arbitrary $0.50$ cutoff. In fintech, **False Negatives** (missed fraud) cause chargeback losses (₹2,500), 
-    while **False Positives** cause checkout friction (₹120). We optimize for the minimum of the Expected Cost Curve:
+    Threshold selection used the validation split when the benchmark was generated. The sliders below only illustrate
+    how assumed costs affect decisions; they do not re-evaluate the model or measure operational ROI.
     """)
 
     chargeback = st.slider("Chargeback Loss per Missed Fraud (₹):", 1000, 10000, 2500, step=500)
     friction = st.slider("Friction Cost per False Positive (₹):", 20, 500, 120, step=10)
 
-    # Compute live cost curve
-    X_full = pipeline.transform(df_sample).values
-    probs = detector.lgbm_model.predict_proba(X_full)[:, 1]
-    y_true = df_sample["is_fraud"].values
-
-    ts = np.linspace(0.1, 0.9, 81)
-    costs = []
-    for t in ts:
-        preds = (probs >= t).astype(int)
-        fn = int(np.sum((preds == 0) & (y_true == 1)))
-        fp = int(np.sum((preds == 1) & (y_true == 0)))
-        total = (fn * chargeback) + (fp * friction)
-        costs.append(total)
-
-    best_idx = np.argmin(costs)
-    opt_t = ts[best_idx]
-    min_loss = costs[best_idx]
-
-    fig, ax = plt.subplots(figsize=(9, 4))
-    ax.plot(ts, costs, "b-", linewidth=2, label="Total Business Expected Loss (₹)")
-    ax.axvline(opt_t, color="r", linestyle="--", label=f"Cost-Optimal Threshold τ* = {opt_t:.2f}")
-    ax.scatter([opt_t], [min_loss], color="red", s=80, zorder=5)
-    ax.set_xlabel("Decision Threshold (τ)")
-    ax.set_ylabel("Total Business Loss (₹)")
-    ax.set_title(f"Minimum Expected Loss at τ* = {opt_t:.2f} (Total Loss: ₹{min_loss:,.0f})")
-    ax.legend()
-    ax.grid(True, linestyle="--", alpha=0.5)
-    st.pyplot(fig)
+    st.metric("Selected validation threshold", f"{detector.optimal_threshold:.4f}")
+    st.write(f"Illustrative assumed cost ratio: missed fraud ₹{chargeback:,} / false alert ₹{friction:,}.")
 
 with tab3:
-    st.subheader("Model Performance & Latency SLA")
+    st.subheader("Held-Out Synthetic Benchmark (Illustrative)")
 
     rep_path = PROJECT_ROOT / "benchmark_report.json"
     if rep_path.exists():
         with open(rep_path) as f:
             b_data = json.load(f)
 
-        m_data = b_data.get("model_performance", {})
-        sla = b_data.get("business_sla", {})
+        m_data = b_data.get("test_performance", {})
 
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("PR-AUC (Precision-Recall)", f"{m_data.get('pr_auc', 1.0):.4f}")
         m2.metric("ROC-AUC", f"{m_data.get('roc_auc', 1.0):.4f}")
-        m3.metric("F1 at Optimal Cutoff", f"{m_data.get('f1_at_optimal_threshold', 1.0):.4f}")
-        m4.metric("P95 Latency", f"{sla.get('p95_latency_ms', 10.3):.2f} ms", "SLA < 50ms PASSED")
+        m3.metric("F1 at Validation Threshold", f"{m_data.get('f1_at_validation_threshold', 0.0):.4f}")
+        m4.metric("Model Scoring P95", f"{m_data.get('p95_model_scoring_latency_ms', 0.0):.2f} ms")
+        st.warning(b_data.get("warning", "Synthetic demonstration only."))
+        st.caption(f"Dataset: {b_data.get('dataset', {}).get('source', 'unknown')}. {m_data.get('latency_method', '')}")
 
         st.markdown("### Top Predictive Risk Signals")
-        imps = m_data.get("feature_importances", {})
+        imps = b_data.get("training", {}).get("feature_importances", {})
         sorted_imps = pd.DataFrame(list(imps.items()), columns=["Feature", "Importance"]).sort_values("Importance", ascending=False).head(8)
         st.table(sorted_imps)

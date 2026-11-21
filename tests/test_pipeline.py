@@ -1,6 +1,5 @@
 """Unit tests for the fraud feature pipeline."""
 
-import numpy as np
 import pandas as pd
 import pytest
 from src.features.pipeline import FraudFeaturePipeline

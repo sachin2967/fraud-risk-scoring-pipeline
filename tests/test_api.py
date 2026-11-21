@@ -12,16 +12,16 @@ def test_health_endpoint():
     data = response.json()
     assert data["status"] == "healthy"
     assert data["model_loaded"] is True
-    assert data["p95_latency_target_ms"] == 50.0
+    assert data["latency_sla_claimed"] is False
 
 
 def test_benchmark_endpoint():
     response = client.get("/api/benchmark")
     assert response.status_code == 200
     data = response.json()
-    assert "model_performance" in data
-    assert "business_sla" in data
-    assert "dataset_summary" in data
+    assert "test_performance" in data
+    assert "dataset" in data
+    assert "warning" in data
 
 
 def test_score_legitimate_transaction():
@@ -43,7 +43,7 @@ def test_score_legitimate_transaction():
     res = response.json()
     assert "decision" in res
     assert "fraud_probability" in res
-    assert "zero_day_anomaly" in res
+    assert "anomaly_flagged" in res
     assert "recommended_action" in res
     assert res["transaction_id"] == "TXN_TEST_001"
     assert res["decision"] in ["APPROVE", "REQUIRE_STEP_UP_AUTH", "BLOCK_TRANSACTION", "MANUAL_REVIEW"]

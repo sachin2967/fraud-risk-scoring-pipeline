@@ -1,4 +1,4 @@
-"""FastAPI microservice for real-time transaction fraud scoring."""
+"""FastAPI demo endpoint for synthetic transaction risk scoring."""
 
 import json
 from pathlib import Path
@@ -15,8 +15,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 MODELS_DIR = PROJECT_ROOT / "models"
 
 app = FastAPI(
-    title="Real-Time Fraud & Anomaly Risk Scoring API",
-    description="Sub-50ms financial transaction risk microservice with cost-sensitive threshold optimization and Isolation Forest zero-day anomaly detection.",
+    title="Fraud Risk Scoring Prototype API",
+    description="Educational synthetic-data demo with cost-sensitive LightGBM scoring and an Isolation Forest anomaly flag.",
     version="1.0.0",
 )
 
@@ -31,17 +31,17 @@ except Exception as e:
 
 
 class TransactionInput(BaseModel):
-    transaction_id: str = Field(..., example="TXN_0001234")
-    account_id: str = Field(..., example="ACC_00512")
-    amount: float = Field(..., example=8450.0)
-    merchant_category: str = Field(..., example="Electronics")
-    hour_of_day: int = Field(..., ge=0, le=23, example=3)
-    time_since_last_sec: float = Field(..., example=45.0)
-    velocity_1h: int = Field(..., example=4)
-    geo_distance_km: float = Field(..., example=120.5)
-    device_trust_score: float = Field(..., ge=0.0, le=1.0, example=0.15)
-    is_foreign: int = Field(..., ge=0, le=1, example=1)
-    amount_deviation_ratio: float = Field(..., example=4.5)
+    transaction_id: str = Field(..., json_schema_extra={"example": "TXN_0001234"})
+    account_id: str = Field(..., json_schema_extra={"example": "ACC_00512"})
+    amount: float = Field(..., json_schema_extra={"example": 8450.0})
+    merchant_category: str = Field(..., json_schema_extra={"example": "Electronics"})
+    hour_of_day: int = Field(..., ge=0, le=23, json_schema_extra={"example": 3})
+    time_since_last_sec: float = Field(..., json_schema_extra={"example": 45.0})
+    velocity_1h: int = Field(..., json_schema_extra={"example": 4})
+    geo_distance_km: float = Field(..., json_schema_extra={"example": 120.5})
+    device_trust_score: float = Field(..., ge=0.0, le=1.0, json_schema_extra={"example": 0.15})
+    is_foreign: int = Field(..., ge=0, le=1, json_schema_extra={"example": 1})
+    amount_deviation_ratio: float = Field(..., json_schema_extra={"example": 4.5})
 
 
 @app.get("/health")
@@ -50,17 +50,17 @@ def health():
         "status": "healthy",
         "model_loaded": detector is not None,
         "optimal_threshold": detector.optimal_threshold if detector else None,
-        "p95_latency_target_ms": 50.0,
+        "latency_sla_claimed": False,
     }
 
 
 @app.post("/api/score")
 def score_transaction(data: TransactionInput):
-    """Scores incoming transaction in real time with < 20ms latency."""
+    """Scores one transaction; no end-to-end latency guarantee is made."""
     if detector is None or pipeline is None:
         raise HTTPException(status_code=503, detail="Model artifact unavailable.")
 
-    input_df = pd.DataFrame([data.dict()])
+    input_df = pd.DataFrame([data.model_dump()])
     X_mat = pipeline.transform(input_df).values
 
     result = detector.predict_risk(X_mat)
