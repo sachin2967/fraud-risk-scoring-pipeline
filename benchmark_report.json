@@ -1,0 +1,39 @@
+{
+  "dataset_summary": {
+    "total_transactions": 15000,
+    "fraud_cases": 20,
+    "fraud_prevalence_pct": 0.13
+  },
+  "model_performance": {
+    "roc_auc": 1.0,
+    "pr_auc": 1.0,
+    "optimal_threshold": 0.69,
+    "f1_at_optimal_threshold": 1.0,
+    "min_business_loss": 0.0,
+    "p95_inference_latency_ms": 10.353,
+    "feature_importances": {
+      "sin_hour": 304,
+      "cos_hour": 229,
+      "log_amount": 370,
+      "amount_deviation_ratio": 113,
+      "velocity_1h": 72,
+      "amount_per_velocity": 285,
+      "log_time_since_last_sec": 226,
+      "geo_distance_km": 212,
+      "device_trust_score": 113,
+      "is_foreign": 0,
+      "cat_merchant_category_Digital_Wallet": 6,
+      "cat_merchant_category_Dining": 56,
+      "cat_merchant_category_Electronics": 124,
+      "cat_merchant_category_Gaming": 9,
+      "cat_merchant_category_Grocery": 16,
+      "cat_merchant_category_Luxury_Jewelry": 0,
+      "cat_merchant_category_Travel": 37
+    }
+  },
+  "business_sla": {
+    "p95_latency_ms": 10.353,
+    "sla_target_ms": 50.0,
+    "sla_met": true
+  }
+}
