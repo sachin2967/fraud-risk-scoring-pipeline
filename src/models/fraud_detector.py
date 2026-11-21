@@ -1,7 +1,8 @@
 """Hybrid Fraud Risk Detection Model combining Cost-Sensitive LightGBM with Isolation Forest."""
 
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 import joblib
 import lightgbm as lgb
 import numpy as np
@@ -21,14 +22,14 @@ class HybridFraudDetector:
 
     def __init__(self, random_state: int = 42):
         self.random_state = random_state
-        self.lgbm_model: Optional[lgb.LGBMClassifier] = None
-        self.isolation_forest: Optional[IsolationForest] = None
+        self.lgbm_model: lgb.LGBMClassifier | None = None
+        self.isolation_forest: IsolationForest | None = None
         self.optimal_threshold: float = 0.50
-        self.cost_matrix: Dict[str, float] = {
+        self.cost_matrix: dict[str, float] = {
             "chargeback_loss_fn": 2500.0,  # ₹2500 lost per false negative (undetected fraud)
-            "friction_cost_fp": 120.0,     # ₹120 lost per false positive (manual review / customer friction)
+            "friction_cost_fp": 120.0,  # ₹120 lost per false positive (manual review / customer friction)
         }
-        self.feature_names: List[str] = []
+        self.feature_names: list[str] = []
 
     def train(
         self,
@@ -38,12 +39,14 @@ class HybridFraudDetector:
         y_validation: pd.Series,
         chargeback_penalty: float = 2500.0,
         friction_cost: float = 120.0,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Fit on training data and select a decision threshold on separate validation data."""
         if len(X) == 0 or len(X_validation) == 0:
             raise ValueError("Training and validation datasets must be non-empty.")
         if set(y.unique()) != {0, 1} or set(y_validation.unique()) != {0, 1}:
-            raise ValueError("Training and validation data must each contain both classes.")
+            raise ValueError(
+                "Training and validation data must each contain both classes."
+            )
         self.feature_names = list(X.columns)
         self.cost_matrix["chargeback_loss_fn"] = chargeback_penalty
         self.cost_matrix["friction_cost_fp"] = friction_cost
@@ -101,10 +104,12 @@ class HybridFraudDetector:
             "optimal_threshold": self.optimal_threshold,
             "min_business_loss": best_cost,
             "threshold_selection": "validation",
-            "feature_importances": dict(zip(self.feature_names, self.lgbm_model.feature_importances_.tolist())),
+            "feature_importances": dict(
+                zip(self.feature_names, self.lgbm_model.feature_importances_.tolist())
+            ),
         }
 
-    def evaluate(self, X: pd.DataFrame, y: pd.Series) -> Dict[str, Any]:
+    def evaluate(self, X: pd.DataFrame, y: pd.Series) -> dict[str, Any]:
         """Evaluate once on held-out data; cost uses the validation-selected threshold."""
         if self.lgbm_model is None or self.isolation_forest is None:
             raise ValueError("Detector must be trained before evaluation.")
@@ -126,20 +131,32 @@ class HybridFraudDetector:
             "roc_auc": float(roc_auc_score(y, probs)),
             "pr_auc": float(average_precision_score(y, probs)),
             "f1_at_validation_threshold": float(f1_score(y, preds, zero_division=0)),
-            "precision_at_validation_threshold": float(precision_score(y, preds, zero_division=0)),
-            "recall_at_validation_threshold": float(recall_score(y, preds, zero_division=0)),
+            "precision_at_validation_threshold": float(
+                precision_score(y, preds, zero_division=0)
+            ),
+            "recall_at_validation_threshold": float(
+                recall_score(y, preds, zero_division=0)
+            ),
             "threshold": self.optimal_threshold,
             "predicted_positive_count": int(preds.sum()),
             "false_negatives": fn,
             "false_positives": fp,
-            "business_cost": float(fn * self.cost_matrix["chargeback_loss_fn"] + fp * self.cost_matrix["friction_cost_fp"]),
-            "all_approve_baseline_business_cost": float(int(np.sum(y.values == 1)) * self.cost_matrix["chargeback_loss_fn"]),
+            "business_cost": float(
+                fn * self.cost_matrix["chargeback_loss_fn"]
+                + fp * self.cost_matrix["friction_cost_fp"]
+            ),
+            "all_approve_baseline_business_cost": float(
+                int(np.sum(y.values == 1)) * self.cost_matrix["chargeback_loss_fn"]
+            ),
             "anomaly_overlay": {
                 "rule": "Isolation Forest score_samples < -0.65 OR supervised threshold",
                 "flagged_count": int(anomaly_flags.sum()),
                 "false_negatives": hybrid_fn,
                 "false_positives": hybrid_fp,
-                "business_cost": float(hybrid_fn * self.cost_matrix["chargeback_loss_fn"] + hybrid_fp * self.cost_matrix["friction_cost_fp"]),
+                "business_cost": float(
+                    hybrid_fn * self.cost_matrix["chargeback_loss_fn"]
+                    + hybrid_fp * self.cost_matrix["friction_cost_fp"]
+                ),
                 "precision": float(precision_score(y, hybrid_preds, zero_division=0)),
                 "recall": float(recall_score(y, hybrid_preds, zero_division=0)),
             },
@@ -147,7 +164,7 @@ class HybridFraudDetector:
             "latency_method": "100 in-process single-row model calls; excludes HTTP, network, and infrastructure",
         }
 
-    def predict_risk(self, X_sample: np.ndarray) -> Dict[str, Any]:
+    def predict_risk(self, X_sample: np.ndarray) -> dict[str, Any]:
         """Scores transaction with dual supervised probability and isolation anomaly signal."""
         # Supervised probability
         lgbm_prob = float(self.lgbm_model.predict_proba(X_sample)[0, 1])
@@ -183,13 +200,16 @@ class HybridFraudDetector:
 
     def save(self, filepath: str):
         """Persists trained hybrid model artifacts."""
-        joblib.dump({
-            "lgbm": self.lgbm_model,
-            "iso": self.isolation_forest,
-            "threshold": self.optimal_threshold,
-            "cost_matrix": self.cost_matrix,
-            "features": self.feature_names,
-        }, filepath)
+        joblib.dump(
+            {
+                "lgbm": self.lgbm_model,
+                "iso": self.isolation_forest,
+                "threshold": self.optimal_threshold,
+                "cost_matrix": self.cost_matrix,
+                "features": self.feature_names,
+            },
+            filepath,
+        )
 
     @classmethod
     def load(cls, filepath: str) -> "HybridFraudDetector":

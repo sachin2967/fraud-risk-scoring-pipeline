@@ -2,14 +2,13 @@
 
 import json
 from pathlib import Path
-from typing import Any, Dict, Optional
+
 import joblib
 import pandas as pd
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
-from src.features.pipeline import FraudFeaturePipeline
-from src.models.fraud_detector import HybridFraudDetector
 
+from src.models.fraud_detector import HybridFraudDetector
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 MODELS_DIR = PROJECT_ROOT / "models"
@@ -21,10 +20,12 @@ app = FastAPI(
 )
 
 try:
-    detector = HybridFraudDetector.load(str(MODELS_DIR / "hybrid_fraud_detector.joblib"))
+    detector = HybridFraudDetector.load(
+        str(MODELS_DIR / "hybrid_fraud_detector.joblib")
+    )
     pipeline = joblib.load(str(MODELS_DIR / "feature_pipeline.joblib"))
     print("✅ Fraud scoring models and feature pipeline loaded.")
-except Exception as e:
+except (FileNotFoundError, OSError, EOFError, KeyError) as e:
     print(f"⚠️ Error loading artifacts: {e}")
     detector = None
     pipeline = None
@@ -39,7 +40,9 @@ class TransactionInput(BaseModel):
     time_since_last_sec: float = Field(..., json_schema_extra={"example": 45.0})
     velocity_1h: int = Field(..., json_schema_extra={"example": 4})
     geo_distance_km: float = Field(..., json_schema_extra={"example": 120.5})
-    device_trust_score: float = Field(..., ge=0.0, le=1.0, json_schema_extra={"example": 0.15})
+    device_trust_score: float = Field(
+        ..., ge=0.0, le=1.0, json_schema_extra={"example": 0.15}
+    )
     is_foreign: int = Field(..., ge=0, le=1, json_schema_extra={"example": 1})
     amount_deviation_ratio: float = Field(..., json_schema_extra={"example": 4.5})
 

@@ -1,6 +1,7 @@
 """Unit tests for FastAPI endpoints using TestClient."""
 
 from fastapi.testclient import TestClient
+
 from api.app import app
 
 client = TestClient(app)
@@ -46,7 +47,12 @@ def test_score_legitimate_transaction():
     assert "anomaly_flagged" in res
     assert "recommended_action" in res
     assert res["transaction_id"] == "TXN_TEST_001"
-    assert res["decision"] in ["APPROVE", "REQUIRE_STEP_UP_AUTH", "BLOCK_TRANSACTION", "MANUAL_REVIEW"]
+    assert res["decision"] in [
+        "APPROVE",
+        "REQUIRE_STEP_UP_AUTH",
+        "BLOCK_TRANSACTION",
+        "MANUAL_REVIEW",
+    ]
 
 
 def test_score_invalid_payload():

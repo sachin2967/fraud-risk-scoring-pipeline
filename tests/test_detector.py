@@ -1,10 +1,12 @@
 """Unit tests for the hybrid fraud detector."""
 
 from pathlib import Path
+
 import joblib
 import numpy as np
 import pandas as pd
 import pytest
+
 from src.models.fraud_detector import HybridFraudDetector
 
 
@@ -26,26 +28,35 @@ def test_model_loading_and_prediction(artifacts_dir):
     assert detector.isolation_forest is not None
     assert np.isfinite(detector.optimal_threshold) and detector.optimal_threshold > 0.0
 
-    sample = pd.DataFrame([{
-        "transaction_id": "TXN_TEST",
-        "account_id": "ACC_TEST",
-        "amount": 25000.0,
-        "merchant_category": "Luxury_Jewelry",
-        "hour_of_day": 2,
-        "time_since_last_sec": 30.0,
-        "velocity_1h": 5,
-        "geo_distance_km": 300.0,
-        "device_trust_score": 0.05,
-        "is_foreign": 1,
-        "amount_deviation_ratio": 9.0,
-    }])
+    sample = pd.DataFrame(
+        [
+            {
+                "transaction_id": "TXN_TEST",
+                "account_id": "ACC_TEST",
+                "amount": 25000.0,
+                "merchant_category": "Luxury_Jewelry",
+                "hour_of_day": 2,
+                "time_since_last_sec": 30.0,
+                "velocity_1h": 5,
+                "geo_distance_km": 300.0,
+                "device_trust_score": 0.05,
+                "is_foreign": 1,
+                "amount_deviation_ratio": 9.0,
+            }
+        ]
+    )
 
     X_mat = pipeline.transform(sample).values
 
     res = detector.predict_risk(X_mat)
     assert "fraud_probability" in res
     assert "decision" in res
-    assert res["decision"] in ["BLOCK_TRANSACTION", "REQUIRE_STEP_UP_AUTH", "MANUAL_REVIEW", "APPROVE"]
+    assert res["decision"] in [
+        "BLOCK_TRANSACTION",
+        "REQUIRE_STEP_UP_AUTH",
+        "MANUAL_REVIEW",
+        "APPROVE",
+    ]
 
 
 def test_training_requires_both_classes_for_threshold_selection():
