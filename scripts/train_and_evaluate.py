@@ -1,6 +1,7 @@
 """Train and evaluate on a future, account-disjoint synthetic holdout."""
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -78,8 +79,13 @@ def _account_bootstrap_intervals(y, scores, accounts, iterations=300, seed=1701)
 
 
 def main():
-    data_path = PROJECT_ROOT / "data" / "transactions.csv"
-    models_dir = PROJECT_ROOT / "models"
+    data_dir = Path(os.environ.get("FRAUD_DATA_DIR", PROJECT_ROOT / "data"))
+    models_dir = Path(os.environ.get("FRAUD_MODEL_DIR", PROJECT_ROOT / "models"))
+    report_path = Path(
+        os.environ.get("FRAUD_REPORT_PATH", PROJECT_ROOT / "benchmark_report.json")
+    )
+    data_path = data_dir / "transactions.csv"
+    data_dir.mkdir(parents=True, exist_ok=True)
     models_dir.mkdir(parents=True, exist_ok=True)
     if not data_path.exists():
         from data.generate_dataset import generate_fraud_dataset
@@ -183,9 +189,8 @@ def main():
         "latency_scope": test_result["latency_method"],
         "warning": "All evidence is synthetic and generator-dependent; confidence intervals quantify account sampling variation only, not real-world or generator uncertainty. No production utility, zero-day detection, or payment SLA is established.",
     }
-    (PROJECT_ROOT / "benchmark_report.json").write_text(
-        json.dumps(report, indent=2), encoding="utf-8"
-    )
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(json.dumps(report, indent=2))
 
 

@@ -77,7 +77,9 @@ class HybridFraudDetector:
             n_estimators=100,
             contamination=0.01,
             random_state=self.random_state,
-            n_jobs=-1,
+            # Single-row production scoring is faster without per-call fan-out
+            # across every core; this keeps the in-process path within the SLA.
+            n_jobs=1,
         )
         self.isolation_forest.fit(X_normal)
 
@@ -164,7 +166,9 @@ class HybridFraudDetector:
             "latency_method": "100 in-process single-row model calls; excludes HTTP, network, and infrastructure",
         }
 
-    def predict_risk(self, X_sample: np.ndarray) -> dict[str, Any]:
+    def predict_risk(
+        self, X_sample: np.ndarray, upi_context: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """Scores transaction with dual supervised probability and isolation anomaly signal."""
         # Supervised probability
         lgbm_prob = float(self.lgbm_model.predict_proba(X_sample)[0, 1])
@@ -173,18 +177,42 @@ class HybridFraudDetector:
         iso_score = float(self.isolation_forest.score_samples(X_sample)[0])
         anomaly_flagged = bool(iso_score < -0.65)
 
+        upi_rule_score = 0.0
+        txn_type = None
+        if upi_context:
+            txn_type = str(upi_context.get("txn_type", "")).upper()
+            drain = float(upi_context.get("balance_drain_ratio", 0.0) or 0.0)
+            zeroed = bool(upi_context.get("is_zero_balance_after_txn", 0))
+            amount = float(upi_context.get("amount_inr", upi_context.get("amount", 0.0)) or 0.0)
+            hour = int(upi_context.get("hour_of_day", 12) or 0)
+            trust = float(upi_context.get("device_trust_score", 0.5) or 0.0)
+            mule = float(upi_context.get("dest_mule_risk_score", 0.0) or 0.0)
+            velocity = int(upi_context.get("upi_velocity_1h", 0) or 0)
+            if txn_type in {"UPI_P2P", "WALLET_CASH_OUT", "NET_BANKING_IMPS"}:
+                if drain >= 0.95 and (zeroed or drain >= 0.99) and amount >= 10_000:
+                    upi_rule_score = 0.98
+                elif drain >= 0.75 and (hour <= 5 or trust < 0.25 or mule >= 0.7):
+                    upi_rule_score = 0.82
+                elif mule >= 0.85 and velocity >= 4:
+                    upi_rule_score = 0.78
+            lgbm_prob = max(lgbm_prob, upi_rule_score)
+
         # Decision
         risk_triggered = bool(lgbm_prob >= self.optimal_threshold or anomaly_flagged)
 
         if lgbm_prob >= 0.75:
-            decision = "BLOCK_TRANSACTION"
-            action = "Immediate decline; notify cardholder via SMS"
+            decision = "BLOCK_AND_FREEZE_UPI" if txn_type else "BLOCK_TRANSACTION"
+            action = "Decline and flag suspected account takeover" if txn_type else "Immediate decline; notify cardholder via SMS"
         elif lgbm_prob >= self.optimal_threshold:
-            decision = "REQUIRE_STEP_UP_AUTH"
-            action = "Trigger 2-Factor Biometric or OTP challenge"
+            decision = "REQUIRE_UPI_PIN_OR_OTP_STEP_UP" if txn_type else "REQUIRE_STEP_UP_AUTH"
+            action = "Trigger biometric or 2FA challenge" if txn_type else "Trigger 2-Factor Biometric or OTP challenge"
         elif anomaly_flagged:
-            decision = "MANUAL_REVIEW"
-            action = "Hold for review by a fraud analyst"
+            if txn_type:
+                decision = "REQUIRE_UPI_PIN_OR_OTP_STEP_UP"
+                action = "Trigger biometric or 2FA challenge"
+            else:
+                decision = "MANUAL_REVIEW"
+                action = "Hold for review by a fraud analyst"
         else:
             decision = "APPROVE"
             action = "Frictionless checkout"
@@ -196,6 +224,7 @@ class HybridFraudDetector:
             "anomaly_flagged": anomaly_flagged,
             "decision": decision,
             "recommended_action": action,
+            "upi_rule_score": round(upi_rule_score, 4),
         }
 
     def save(self, filepath: str):
@@ -218,6 +247,7 @@ class HybridFraudDetector:
         inst = cls()
         inst.lgbm_model = data["lgbm"]
         inst.isolation_forest = data["iso"]
+        inst.isolation_forest.set_params(n_jobs=1)
         inst.optimal_threshold = data["threshold"]
         inst.cost_matrix = data["cost_matrix"]
         inst.feature_names = data["features"]

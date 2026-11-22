@@ -2,9 +2,9 @@
 
 from fastapi.testclient import TestClient
 
-from api.app import app
+import api.app as api_module
 
-client = TestClient(app)
+client = TestClient(api_module.app)
 
 
 def test_health_endpoint():
@@ -14,6 +14,12 @@ def test_health_endpoint():
     assert data["status"] == "healthy"
     assert data["model_loaded"] is True
     assert data["latency_sla_claimed"] is False
+
+
+def test_health_is_not_ready_without_artifacts(monkeypatch):
+    monkeypatch.setattr(api_module, "detector", None)
+    response = client.get("/health")
+    assert response.status_code == 503
 
 
 def test_benchmark_endpoint():
@@ -63,3 +69,23 @@ def test_score_invalid_payload():
     }
     response = client.post("/api/score", json=payload)
     assert response.status_code == 422  # Pydantic validation error
+
+
+def test_score_rejects_invalid_numeric_and_unknown_fields():
+    payload = {
+        "transaction_id": "TXN_TEST_001",
+        "account_id": "ACC_0001",
+        "amount": -1.0,
+        "merchant_category": "Grocery",
+        "hour_of_day": 14,
+        "time_since_last_sec": 3600.0,
+        "velocity_1h": 1,
+        "geo_distance_km": 5.0,
+        "device_trust_score": 0.95,
+        "is_foreign": 0,
+        "amount_deviation_ratio": 0.8,
+    }
+    assert client.post("/api/score", json=payload).status_code == 422
+    payload["amount"] = 1.0
+    payload["unmodeled_feature"] = 1
+    assert client.post("/api/score", json=payload).status_code == 422

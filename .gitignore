@@ -3,5 +3,8 @@ __pycache__/
 *$py.class
 .pytest_cache/
 data/*.csv
+data/raw/*.arff
+data/raw/*.download
+real_data_benchmark_report.json
 models/*.joblib
 .venv/
