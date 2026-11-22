@@ -1,5 +1,6 @@
-"""Unit tests for FastAPI endpoints using TestClient."""
+"""Contract tests for the real-data scoring API."""
 
+import numpy as np
 from fastapi.testclient import TestClient
 
 import api.app as api_module
@@ -7,85 +8,42 @@ import api.app as api_module
 client = TestClient(api_module.app)
 
 
-def test_health_endpoint():
-    response = client.get("/health")
+class FixedProbabilityModel:
+    def predict_proba(self, features):
+        assert features.shape == (1, 29)
+        return np.array([[0.01, 0.99]])
+
+
+def valid_payload():
+    return {"transaction_id": "TXN_DEMO_001", "amount": 1499.0, "pca_features": [0.0] * 28}
+
+
+def test_health_requires_real_model_artifact(monkeypatch):
+    monkeypatch.setattr(api_module, "artifact", None)
+    assert client.get("/health").status_code == 503
+
+
+def test_real_data_score_contract(monkeypatch):
+    monkeypatch.setattr(api_module, "artifact", {
+        "model": FixedProbabilityModel(), "threshold": 0.5,
+        "dataset_id": 1597, "dataset_version": 1,
+        "feature_names": [f"V{i}" for i in range(1, 29)] + ["Amount"],
+    })
+    response = client.post("/api/score", json=valid_payload())
     assert response.status_code == 200
-    data = response.json()
-    assert data["status"] == "healthy"
-    assert data["model_loaded"] is True
-    assert data["latency_sla_claimed"] is False
+    result = response.json()
+    assert result["decision"] == "REVIEW_OR_STEP_UP"
+    assert result["fraud_risk_score"] == 0.99
+    assert "uncalibrated" in result["score_interpretation"]
+    assert result["amount_value"] == 1499.0
+    assert "currency not documented" in result["amount_unit"]
+    assert result["model_latency_ms"] >= 0
 
 
-def test_health_is_not_ready_without_artifacts(monkeypatch):
-    monkeypatch.setattr(api_module, "detector", None)
-    response = client.get("/health")
-    assert response.status_code == 503
-
-
-def test_benchmark_endpoint():
-    response = client.get("/api/benchmark")
-    assert response.status_code == 200
-    data = response.json()
-    assert "test_performance" in data
-    assert "dataset" in data
-    assert "warning" in data
-
-
-def test_score_legitimate_transaction():
-    payload = {
-        "transaction_id": "TXN_TEST_001",
-        "account_id": "ACC_0001",
-        "amount": 250.0,
-        "merchant_category": "Grocery",
-        "hour_of_day": 14,
-        "time_since_last_sec": 3600.0,
-        "velocity_1h": 1,
-        "geo_distance_km": 5.0,
-        "device_trust_score": 0.95,
-        "is_foreign": 0,
-        "amount_deviation_ratio": 0.8,
-    }
-    response = client.post("/api/score", json=payload)
-    assert response.status_code == 200
-    res = response.json()
-    assert "decision" in res
-    assert "fraud_probability" in res
-    assert "anomaly_flagged" in res
-    assert "recommended_action" in res
-    assert res["transaction_id"] == "TXN_TEST_001"
-    assert res["decision"] in [
-        "APPROVE",
-        "REQUIRE_STEP_UP_AUTH",
-        "BLOCK_TRANSACTION",
-        "MANUAL_REVIEW",
-    ]
-
-
-def test_score_invalid_payload():
-    # Missing required field 'amount'
-    payload = {
-        "transaction_id": "TXN_INVALID",
-        "account_id": "ACC_0001",
-    }
-    response = client.post("/api/score", json=payload)
-    assert response.status_code == 422  # Pydantic validation error
-
-
-def test_score_rejects_invalid_numeric_and_unknown_fields():
-    payload = {
-        "transaction_id": "TXN_TEST_001",
-        "account_id": "ACC_0001",
-        "amount": -1.0,
-        "merchant_category": "Grocery",
-        "hour_of_day": 14,
-        "time_since_last_sec": 3600.0,
-        "velocity_1h": 1,
-        "geo_distance_km": 5.0,
-        "device_trust_score": 0.95,
-        "is_foreign": 0,
-        "amount_deviation_ratio": 0.8,
-    }
+def test_score_rejects_wrong_feature_width_and_unknown_fields():
+    payload = valid_payload()
+    payload["pca_features"] = [0.0] * 27
     assert client.post("/api/score", json=payload).status_code == 422
-    payload["amount"] = 1.0
-    payload["unmodeled_feature"] = 1
+    payload = valid_payload()
+    payload["upi_id"] = "someone@bank"
     assert client.post("/api/score", json=payload).status_code == 422

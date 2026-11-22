@@ -1,8 +1,5 @@
 """Unit tests for the hybrid fraud detector."""
 
-from pathlib import Path
-
-import joblib
 import numpy as np
 import pandas as pd
 import pytest
@@ -10,53 +7,18 @@ import pytest
 from src.models.fraud_detector import HybridFraudDetector
 
 
-@pytest.fixture
-def artifacts_dir():
-    return Path(__file__).resolve().parent.parent / "models"
-
-
-def test_model_loading_and_prediction(artifacts_dir):
-    det_path = artifacts_dir / "hybrid_fraud_detector.joblib"
-    pipe_path = artifacts_dir / "feature_pipeline.joblib"
-    assert det_path.exists()
-    assert pipe_path.exists()
-
-    detector = HybridFraudDetector.load(str(det_path))
-    pipeline = joblib.load(str(pipe_path))
-
+def test_model_training_and_prediction_do_not_need_local_artifacts():
+    rng = np.random.default_rng(42)
+    X = pd.DataFrame({"signal": rng.normal(size=600), "noise": rng.normal(size=600)})
+    y = pd.Series((X.signal > 1.0).astype(int))
+    detector = HybridFraudDetector()
+    detector.train(X.iloc[:450], y.iloc[:450], X.iloc[450:], y.iloc[450:])
     assert detector.lgbm_model is not None
     assert detector.isolation_forest is not None
-    assert np.isfinite(detector.optimal_threshold) and detector.optimal_threshold > 0.0
-
-    sample = pd.DataFrame(
-        [
-            {
-                "transaction_id": "TXN_TEST",
-                "account_id": "ACC_TEST",
-                "amount": 25000.0,
-                "merchant_category": "Luxury_Jewelry",
-                "hour_of_day": 2,
-                "time_since_last_sec": 30.0,
-                "velocity_1h": 5,
-                "geo_distance_km": 300.0,
-                "device_trust_score": 0.05,
-                "is_foreign": 1,
-                "amount_deviation_ratio": 9.0,
-            }
-        ]
-    )
-
-    X_mat = pipeline.transform(sample).values
-
-    res = detector.predict_risk(X_mat)
-    assert "fraud_probability" in res
-    assert "decision" in res
-    assert res["decision"] in [
-        "BLOCK_TRANSACTION",
-        "REQUIRE_STEP_UP_AUTH",
-        "MANUAL_REVIEW",
-        "APPROVE",
-    ]
+    assert np.isfinite(detector.optimal_threshold)
+    result = detector.predict_risk(X.iloc[[0]].to_numpy())
+    assert "fraud_probability" in result
+    assert result["decision"] in {"BLOCK_TRANSACTION", "REQUIRE_STEP_UP_AUTH", "MANUAL_REVIEW", "APPROVE"}
 
 
 def test_training_requires_both_classes_for_threshold_selection():

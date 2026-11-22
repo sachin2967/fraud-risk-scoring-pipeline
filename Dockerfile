@@ -15,7 +15,6 @@ COPY api/ api/
 COPY scripts/ scripts/
 COPY data/generate_dataset.py data/generate_dataset.py
 COPY streamlit_app/ streamlit_app/
-COPY benchmark_report.json .
 RUN mkdir -p models data var && chown -R app:app /app
 
 USER app

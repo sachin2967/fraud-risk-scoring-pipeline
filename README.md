@@ -1,66 +1,66 @@
-# Synthetic Fraud Risk Scoring Prototype
+# Real-Data Card Fraud Risk Lab
 
-A reproducible educational project for imbalanced classification, threshold selection, model serving, and evaluation under temporal and account shift. The bundled dataset is **synthetic and locally generated**. It is not evidence about real payment fraud, production business value, zero-day detection, or a payment-gateway SLA.
+A reproducible fraud-modeling portfolio project trained on the public ULB / Worldline credit-card fraud dataset through OpenML (dataset 1597, version 1). It includes a checksum-verified OpenML Parquet download, time-ordered holdout, model comparison, validation-only threshold selection, a persisted trained model, FastAPI scoring, and a Streamlit cockpit.
 
-The API and dashboard continue to use the synthetic schema and artifacts. A separate evaluation script now benchmarks a model on the public, anonymized ULB / Worldline credit-card dataset. That second benchmark is not connected to the API and does not make the demo production ready.
+**This is a real-data research benchmark, not a production fraud service.** The dataset contains 284,807 anonymized transactions collected over two days in September 2013, with 492 labeled fraud cases. Its features are anonymized PCA components; it has no account identifiers, no UPI or wallet events, and its `Amount` currency is not documented. The benchmark therefore says nothing about current payment behavior in India, account-level generalization, actual INR losses, or gateway decisions. [OpenML dataset record](https://www.openml.org/d/1597)
 
-## What it demonstrates
+## What the project does
 
-- A seeded generator with overlapping probabilistic risk signals, repeated transactions per account, and a partially observable late-window attack shift. Labels are sampled rather than assigned by a single deterministic rule. Amount-deviation features use only the account's earlier transactions, with a fixed cold-start prior; the latent account-spend variable is not exposed to the model.
-- A LightGBM classifier with `scale_pos_weight`; the Isolation Forest is fitted on legitimate training rows and its fixed anomaly rule is reported as a separate overlay.
-- A chronological train / validation / test evaluation with non-overlapping account cohorts. The validation partition alone selects the supervised decision threshold; test results are reported once.
-- Account-cluster bootstrap intervals for test ROC-AUC and average precision. These quantify sampling variation among synthetic accounts only; they do not capture generator uncertainty or external validity.
-- A FastAPI scoring endpoint and Streamlit demo.
-- An Indian UPI and wallet adapter for `UPI_P2P`, `UPI_P2M`, wallet cash-out, and IMPS records. It derives INR, balance-drain, zero-balance, recent UPI velocity, recipient-handle heuristic, and cyclical-hour features.
+- Downloads a pinned OpenML Parquet object and validates its MD5 ETag before training.
+- Orders observations by elapsed `Time` and creates sequential 70% train, 15% validation, and 15% final test windows. `Time` is used only for ordering and excluded from the model features.
+- Compares class-weighted LightGBM and standardized class-weighted logistic regression. It selects the model using validation average precision; the final test window is not used for model selection.
+- Selects the action threshold on validation data using a declared 20:1 false-negative to false-positive *relative* cost weight. This is a sensitivity assumption, not a measured cost model or INR ROI claim.
+- Reports average precision against fraud prevalence, ROC-AUC, Brier score, precision/recall/F1, confusion counts, and modeled relative costs on the held-out window.
+- Saves a local model artifact used by the FastAPI and Streamlit apps. Raw dataset and model files are excluded from Git.
+- Exposes an uncalibrated model score, not a calibrated probability; action labels are demonstration outputs only.
 
-## Reproduce
+## Run locally
 
-```bash
+```powershell
 python -m venv .venv
-# Activate the environment, then:
-pip install -r requirements.txt
-python -c "from pathlib import Path; from data.generate_dataset import generate_fraud_dataset; generate_fraud_dataset(Path('data/transactions.csv'))"
-python scripts/train_and_evaluate.py
-pytest -q
-```
-
-The explicit generator command replaces any previous local dataset; training only generates data automatically when the CSV is absent. `benchmark_report.json` records the dataset recipe, time windows, class counts, account overlap checks, validation-selected threshold, test results, and clustered intervals. The checked-in report is generated from seed 42 and 60,000 synthetic transactions.
-
-### Separate public-data benchmark
-
-```bash
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
 python scripts/evaluate_openml_benchmark.py
 ```
 
-This downloads OpenML dataset 1597 (version 1) to ignored `data/raw/`, checks the file against the checksum published in OpenML metadata, sorts by elapsed `Time`, and creates 70%/15%/15% chronological train/validation/test partitions. The validation partition selects an F1 threshold; the test partition is evaluated once. The script writes `real_data_benchmark_report.json`. The source reports 284,807 transactions over two days in September 2013, 492 labeled fraud cases, and anonymized PCA features; this is real historical data but not a representative sample of current payment traffic. See the [OpenML dataset record](https://www.openml.org/d/1597) and retain its source attribution. The source data is not committed or redistributed here.
+The first training run downloads the public dataset. To use a manually downloaded copy, put the checksum-matching file at `data/raw/openml_1597_creditcard.parquet`. The report is written to `real_data_benchmark_report.json` and the locally ignored model artifact to `models/credit_card_fraud_model.joblib`.
 
-This dataset has no account identifier, covers only two days, and has no operating-cost or review-capacity labels. Consequently this benchmark does not estimate account generalization, business cost, present-day fraud detection, or deployment readiness. The public-data experiment is intentionally independent of the synthetic scoring API because their feature schemas do not match.
+## Reproduced benchmark snapshot
 
-### Current synthetic benchmark
+With the pinned OpenML Parquet checksum and seed 42, the latest run selected standardized logistic regression over LightGBM using validation average precision (0.840 vs 0.821). On the untouched later test window, average precision was **0.708** versus **0.00122** fraud prevalence, ROC-AUC was **0.977**, and recall was **0.750** at the validation-selected score threshold. That operating point produced 39 true positives, 13 false negatives, and 46 false positives among 42,721 test transactions. The modeled relative cost was 306 units versus 1,040 for approving everything, under the illustrative 20:1 FN/FP weight. These are historical benchmark results, not expected production outcomes or realized savings.
 
-The latest run produced 60,000 events with 1,481 synthetic positive labels (2.47%). The future test window contained 12,061 events from 2,342 accounts and 304 positives. It was account-disjoint from train and validation (zero overlapping account IDs). At the validation-selected threshold, held-out ROC-AUC was **0.672**, average precision **0.0542** against test prevalence **0.0252**, and recall **0.329**. The account-cluster bootstrap 95% intervals were **[0.0432, 0.0737]** for average precision and **[0.6368, 0.7022]** for ROC-AUC.
+The 100-call warmed, in-process single-row model latency p95 was **1.43 ms** on the machine used for this run. This does not establish an API or deployment latency SLA.
 
-Under illustrative costs of ₹2,500 per missed positive and ₹120 per false positive, the chosen supervised rule reduced modeled test cost by **7.19%** against the all-approve baseline for this generated sample. The fixed Isolation Forest overlay flagged one event and did not change the supervised decisions or modeled cost. These comparisons are assumption-dependent and must not be presented as realized savings or evidence of zero-day detection.
+Start the API and dashboard in separate terminals:
 
-These numbers are neither a target nor an estimate of real-world performance. They are generator-dependent results from one seeded run. A competitive project claim requires real data with documented rights, a properly designed evaluation protocol, and replication across time periods.
+```powershell
+uvicorn api.app:app --host 127.0.0.1 --port 8000
+streamlit run streamlit_app/app.py
+```
 
-## API
+The API docs are at `/docs`. `POST /api/score` accepts the 28 anonymized values in `pca_features` plus the source `amount` value. The uncalibrated score is not a transaction authorization; action labels are illustrative. Latency shown by the API and dashboard is the in-process model call only and is not an end-to-end SLA.
 
-For a local API, first run the synthetic training pipeline. To build and start the complete local Docker demo, including its one-shot training service:
+## Docker demo
 
-```bash
+```powershell
 docker compose up --build
 ```
 
-For direct local execution, use `python scripts/train_and_evaluate.py` first, then `uvicorn api.app:app --host 127.0.0.1 --port 8000`. Compose publishes only on loopback (API `8010`, dashboard `8510` by default; override with `FRAUD_API_PORT` / `FRAUD_DASHBOARD_PORT`) and stores generated data/models in a named Docker volume. Open `/docs` for the schema. `POST /api/score` accepts either `amount` or `amount_inr`, plus optional UPI transaction context. UPI balance-drain rules can raise the risk score and route to `REQUIRE_UPI_PIN_OR_OTP_STEP_UP` or `BLOCK_AND_FREEZE_UPI`; the Streamlit cockpit includes a ₹150 QR payment and ₹45,000 midnight drain preset. The checked-in synthetic training artifacts retain their original feature schema, so the UPI drain overlay is an explicit policy heuristic rather than a learned signal from UPI-labelled training records. `GET /api/benchmark` serves the synthetic report.
+The one-shot training service downloads and evaluates the benchmark, then persists the report, model, and raw data in a named volume. The API and dashboard are published on loopback (`8010` and `8510` by default).
 
-## Limitations and next steps
+## Validation
 
-- The real-data benchmark uses a single two-day 2013 public dataset and does not provide current or representative payment-risk validation.
-- Synthetic labels are generated from known risk factors; even with account-disjoint future windows, performance says only how well this model recovers this simulation's process.
-- Account bootstrap intervals reflect clustered sampling uncertainty within the held-out synthetic window, not temporal variability, model-selection uncertainty, or data-generation uncertainty.
-- Cost assumptions are illustrative. Probability calibration, policy constraints, and threshold selection need representative labels and operational cost estimates.
-- UPI recipient-risk values and balance-drain routing are prototype heuristics. The UPI rule score is an operational override, not a calibrated probability. Validate with representative, consented payment data and account for gateway-specific authorization requirements before any real transaction use.
-- The anomaly rule is a fixed heuristic and has no evidence of zero-day detection value; compare its reported overlay against the supervised-only policy.
-- Latency is 100 in-process single-row scoring calls, excluding HTTP, network, serialization, load, and infrastructure. It is not an end-to-end SLA.
-- Docker Compose is a local educational demo only. It has no authentication, request throttling, durable audit trail, secret management, external observability, or realistic concurrent API load test. Do not expose it to a network or use its routing decisions for transactions.
+```powershell
+python -m pytest tests/ -v
+```
+
+The test suite checks split boundaries, validation-only threshold selection, API input contracts, and the retained synthetic-data utilities. Synthetic generator tests are not evidence about the real-data model. The CI job does not download third-party training data; a local benchmark run is required to produce the real model artifact.
+
+## Limitations and responsible use
+
+- The dataset is historical and narrow. Its 2013 results are not “latest data” and cannot establish current performance.
+- PCA features prevent useful transaction-level explanation. No account identity, device history, merchant context, geography, or network graph is available.
+- The benchmark has only one short temporal split. It cannot show stability across merchants, countries, years, attack campaigns, or policy changes.
+- The relative cost weights are illustrative. They must be replaced with measured costs and operational capacity before selecting any real review threshold.
+- Do not use the score or action labels to approve, challenge, or block real customers. A production system requires licensed representative data, privacy and security controls, online feature parity, calibration and drift monitoring, human review, resilience, load testing, and formal risk governance.
+- No UPI data or UPI fraud rules are included. PhonePe Pulse publishes aggregate statistics, not per-transaction fraud labels suitable for this supervised task.
