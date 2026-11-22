@@ -8,3 +8,9 @@ data/raw
 data/transactions.csv
 data/*.tmp
 *.joblib
+.env
+var
+state
+*.sqlite3
+.env.*
+!.env.example

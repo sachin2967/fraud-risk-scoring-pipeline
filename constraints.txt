@@ -1,0 +1,12 @@
+# Versions used by the locally verified model and HTTP pilot (Python 3.11).
+# Re-evaluate/re-export the model and reference when changing the ML runtime.
+numpy==2.4.6
+pandas==2.3.3
+scipy==1.17.1
+scikit-learn==1.9.1
+joblib==1.6.0
+lightgbm==4.7.0
+fastapi==0.165.0
+starlette==1.10.0
+pydantic==2.11.7
+httpx==0.27.0

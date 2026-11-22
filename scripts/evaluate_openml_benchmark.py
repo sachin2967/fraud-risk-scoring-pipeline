@@ -69,7 +69,14 @@ def chronological_split(frame: pd.DataFrame) -> tuple[pd.DataFrame, ...]:
 
 def select_cost_threshold(y_true: np.ndarray, scores: np.ndarray) -> tuple[float, float]:
     """Select threshold from validation costs only; return threshold and cost."""
-    candidates = np.unique(np.concatenate(([0.0], scores, [1.0])))
+    y_true = np.asarray(y_true)
+    scores = np.asarray(scores, dtype=float)
+    if (y_true.ndim != 1 or scores.ndim != 1 or len(y_true) != len(scores)
+            or not len(scores) or not np.isin(y_true, [0, 1]).all()
+            or not np.isfinite(scores).all() or ((scores < 0) | (scores > 1)).any()):
+        raise ValueError("Expected aligned nonempty numeric binary labels and finite scores in [0,1].")
+    # The all-approve policy must remain expressible even for exact unit scores.
+    candidates = np.unique(np.concatenate(([0.0], scores, [2.0])))
     order = np.argsort(-scores, kind="stable")
     sorted_scores = scores[order]
     cumulative_true_positive = np.cumsum(y_true[order] == 1)

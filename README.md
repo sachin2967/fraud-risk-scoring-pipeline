@@ -50,6 +50,28 @@ The one-shot training service downloads and evaluates the benchmark, then persis
 
 ## Validation
 
+### Durable serving pilot
+
+Scores are now committed to a SQLite ledger before acknowledgement. Identical
+ID/payload retries return the original decision; conflicting reuse returns 409.
+`POST /api/predictions/{prediction_id}/label` records attributed later labels;
+`GET /api/predictions` exports bounded pages for monitoring. Re-export earlier rows
+to collect labels; the append cursor is not a label change feed.
+
+`/live` is process liveness; `/ready` and `/health` check model/configuration/storage.
+`APP_ENV=production` requires `FRAUD_API_KEY` (32+ characters), persistent
+`FRAUD_STATE_PATH`, and trusted `FRAUD_MODEL_SHA256`. Other routes require
+`X-API-Key` when a key is configured. Bodies are bounded to 64 KiB. This remains
+an operator-only single-host pilot behind TLS/access controls.
+
+Export a training-only reference with `python scripts/export_monitoring_reference.py`.
+Create consistent backups with `python scripts/backup_decisions.py --source var/decisions.sqlite3 --output var/snapshot-001.sqlite3`.
+See the standalone [operations guide](docs/OPERATIONS.md) for label timing,
+restoration and rollback, and the [portfolio runbook](https://github.com/sachin2967/ml-portfolio/blob/main/OPERATIONS_RUNBOOK.md) for cross-service replay. The initial 300-request concurrency-4 local HTTP experiment achieved
+about 68.8 requests/sec with P95 177.7 ms and recovered predictions/labels after a
+forced restart. This includes durable handling, exceeds a 50 ms P95 target at that
+workload, and is not a cloud/SLA benchmark. The historical modeling limits still apply.
+
 ```powershell
 python -m pytest tests/ -v
 ```
@@ -64,3 +86,13 @@ The test suite checks split boundaries, validation-only threshold selection, API
 - The relative cost weights are illustrative. They must be replaced with measured costs and operational capacity before selecting any real review threshold.
 - Do not use the score or action labels to approve, challenge, or block real customers. A production system requires licensed representative data, privacy and security controls, online feature parity, calibration and drift monitoring, human review, resilience, load testing, and formal risk governance.
 - No UPI data or UPI fraud rules are included. PhonePe Pulse publishes aggregate statistics, not per-transaction fraud labels suitable for this supervised task.
+
+## Release verification and operations
+
+The 22 November 2026 local verification passed **26 tests** and repository lint.
+The API image passed non-root, network-isolated scoring, retry and label contract checks with the trusted local artifact.
+
+See the standalone [operations guide](docs/OPERATIONS.md) for configuration,
+failure handling, recovery and rollout limits. Cross-project reports and replay tools
+live in the separate [portfolio guide](https://github.com/sachin2967/ml-portfolio).
+Hosted CI and cloud deployment are separate checks; a local pass does not imply either.

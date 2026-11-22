@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import pytest
 
 from scripts.evaluate_openml_benchmark import (
     FALSE_NEGATIVE_COST,
@@ -42,3 +43,18 @@ def test_cost_threshold_matches_minimum_validation_cost():
     expected = int(np.sum((~predictions) & (y == 1))) * FALSE_NEGATIVE_COST
     expected += int(np.sum(predictions & (y == 0))) * FALSE_POSITIVE_COST
     assert cost == expected
+
+
+def test_cost_selection_can_choose_all_approve_with_exact_unit_scores():
+    labels = np.array([0] * 100 + [1])
+    scores = np.array([1.0] * 100 + [0.0])
+    threshold, cost = select_cost_threshold(labels, scores)
+    assert threshold > 1.0
+    assert cost == FALSE_NEGATIVE_COST
+
+
+@pytest.mark.parametrize("labels,scores", [(["0", "1"], [0.1, 0.9]),
+    ([0, 1], [0.2]), ([0, 1], [0.2, float("nan")]), ([0, 1], [0.2, 1.1])])
+def test_cost_selection_rejects_invalid_or_string_labels(labels, scores):
+    with pytest.raises(ValueError):
+        select_cost_threshold(np.array(labels), np.array(scores))

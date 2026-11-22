@@ -8,3 +8,10 @@ data/raw/*.parquet
 data/raw/*.download
 models/*.joblib
 .venv/
+var/
+.env
+*.sqlite3
+*.sqlite3-journal
+models/*reference*.json
+.env.*
+!.env.example
