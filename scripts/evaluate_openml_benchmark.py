@@ -67,10 +67,17 @@ def chronological_split(frame: pd.DataFrame) -> tuple[pd.DataFrame, ...]:
     return parts
 
 
-def select_cost_threshold(y_true: np.ndarray, scores: np.ndarray) -> tuple[float, float]:
+def select_cost_threshold(
+    y_true: np.ndarray, scores: np.ndarray, *,
+    false_negative_cost: float = FALSE_NEGATIVE_COST,
+    false_positive_cost: float = FALSE_POSITIVE_COST,
+) -> tuple[float, float]:
     """Select threshold from validation costs only; return threshold and cost."""
     y_true = np.asarray(y_true)
     scores = np.asarray(scores, dtype=float)
+    if (not np.isfinite([false_negative_cost, false_positive_cost]).all()
+            or false_negative_cost < 0 or false_positive_cost < 0):
+        raise ValueError("Relative costs must be finite and nonnegative.")
     if (y_true.ndim != 1 or scores.ndim != 1 or len(y_true) != len(scores)
             or not len(scores) or not np.isin(y_true, [0, 1]).all()
             or not np.isfinite(scores).all() or ((scores < 0) | (scores > 1)).any()):
@@ -89,7 +96,7 @@ def select_cost_threshold(y_true: np.ndarray, scores: np.ndarray) -> tuple[float
     positives = int(np.sum(y_true == 1))
     false_negative = positives - true_positive
     false_positive = predicted_positive - true_positive
-    costs = false_negative * FALSE_NEGATIVE_COST + false_positive * FALSE_POSITIVE_COST
+    costs = false_negative * false_negative_cost + false_positive * false_positive_cost
     best_idx = int(np.argmin(costs))
     return float(candidates[best_idx]), float(costs[best_idx])
 

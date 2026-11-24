@@ -80,6 +80,21 @@ The test suite checks split boundaries, validation-only threshold selection, API
 
 ## Limitations and responsible use
 
+### Additional training and calibration study
+
+Run `python scripts/evaluate_stability.py` for the separate
+[stability report](stability_benchmark_report.json). Six fixed candidates are fitted
+on three expanding development splits inside the original training partition
+(18 fits). Model selection uses their mean validation AP. The first half of the
+original validation window fits a sigmoid calibrator; the second selects policies
+at five illustrative FN/FP cost ratios. The selected seven-leaf LightGBM candidate
+has historical test AP 0.7568 and Brier score 0.000424 after calibration, compared
+with 0.006664 before calibration. At the 20:1 validation policy it has 39 TP,
+13 FN and 61 FP. These use the already inspected historical test window and are
+exploratory results, not fresh external validation. The serving artifact and
+original benchmark above remain unchanged. Inspect all folds and cost tradeoffs;
+the higher AP does not establish a universally better operating policy.
+
 - The dataset is historical and narrow. Its 2013 results are not “latest data” and cannot establish current performance.
 - PCA features prevent useful transaction-level explanation. No account identity, device history, merchant context, geography, or network graph is available.
 - The benchmark has only one short temporal split. It cannot show stability across merchants, countries, years, attack campaigns, or policy changes.
@@ -89,7 +104,7 @@ The test suite checks split boundaries, validation-only threshold selection, API
 
 ## Release verification and operations
 
-The 22 November 2026 local verification passed **26 tests** and repository lint.
+The latest 22 November 2026 local verification passed **31 tests** and repository lint.
 The API image passed non-root, network-isolated scoring, retry and label contract checks with the trusted local artifact.
 
 See the standalone [operations guide](docs/OPERATIONS.md) for configuration,

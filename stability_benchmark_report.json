@@ -1,0 +1,308 @@
+{
+  "protocol": "stability-v1; 6 candidates x 3 expanding folds inside original training; selection by mean AP; validation first half sigmoid calibration, second half policy; existing historical test reused once for this report",
+  "python": "3.11.4",
+  "seed": 42,
+  "development": {
+    "lr_0.1_balanced": {
+      "folds": [
+        {
+          "train_rows": 79747,
+          "validation_rows": 39873,
+          "train_time_max": 58159.0,
+          "validation_time_min": 58160.0,
+          "fraud_cases": 52,
+          "average_precision": 0.6679927547030166,
+          "roc_auc": 0.923208280130507,
+          "brier_score": 0.016162322340141574,
+          "fit_and_score_seconds": 0.6228115999983856
+        },
+        {
+          "train_rows": 119620,
+          "validation_rows": 39871,
+          "train_time_max": 75520.0,
+          "validation_time_min": 75522.0,
+          "fraud_cases": 111,
+          "average_precision": 0.8487043394938987,
+          "roc_auc": 0.9805184711874853,
+          "brier_score": 0.023320726558580644,
+          "fit_and_score_seconds": 0.5858527000018512
+        },
+        {
+          "train_rows": 159491,
+          "validation_rows": 39873,
+          "train_time_max": 112553.0,
+          "validation_time_min": 112555.0,
+          "fraud_cases": 28,
+          "average_precision": 0.6786320930609469,
+          "roc_auc": 0.9836876826273238,
+          "brier_score": 0.04026507194311077,
+          "fit_and_score_seconds": 0.974792900000466
+        }
+      ],
+      "mean_ap": 0.7317763957526208
+    },
+    "lr_1_balanced": {
+      "folds": [
+        {
+          "train_rows": 79747,
+          "validation_rows": 39873,
+          "train_time_max": 58159.0,
+          "validation_time_min": 58160.0,
+          "fraud_cases": 52,
+          "average_precision": 0.6832197144957631,
+          "roc_auc": 0.9102894104965876,
+          "brier_score": 0.016196290201912947,
+          "fit_and_score_seconds": 0.4084690000017872
+        },
+        {
+          "train_rows": 119620,
+          "validation_rows": 39871,
+          "train_time_max": 75520.0,
+          "validation_time_min": 75522.0,
+          "fraud_cases": 111,
+          "average_precision": 0.8471838306955795,
+          "roc_auc": 0.976483903420523,
+          "brier_score": 0.022615167230100208,
+          "fit_and_score_seconds": 0.457369200004905
+        },
+        {
+          "train_rows": 159491,
+          "validation_rows": 39873,
+          "train_time_max": 112553.0,
+          "validation_time_min": 112555.0,
+          "fraud_cases": 28,
+          "average_precision": 0.6874922621710731,
+          "roc_auc": 0.9837701450262625,
+          "brier_score": 0.04032480489279393,
+          "fit_and_score_seconds": 0.9235393999988446
+        }
+      ],
+      "mean_ap": 0.7392986024541385
+    },
+    "lr_1_unweighted": {
+      "folds": [
+        {
+          "train_rows": 79747,
+          "validation_rows": 39873,
+          "train_time_max": 58159.0,
+          "validation_time_min": 58160.0,
+          "fraud_cases": 52,
+          "average_precision": 0.5654096244069198,
+          "roc_auc": 0.9267114568463103,
+          "brier_score": 0.0008883872335946508,
+          "fit_and_score_seconds": 0.2645300000003772
+        },
+        {
+          "train_rows": 119620,
+          "validation_rows": 39871,
+          "train_time_max": 75520.0,
+          "validation_time_min": 75522.0,
+          "fraud_cases": 111,
+          "average_precision": 0.7794535221141197,
+          "roc_auc": 0.9661600232022768,
+          "brier_score": 0.0009701990669299802,
+          "fit_and_score_seconds": 0.2770881999967969
+        },
+        {
+          "train_rows": 159491,
+          "validation_rows": 39873,
+          "train_time_max": 112553.0,
+          "validation_time_min": 112555.0,
+          "fraud_cases": 28,
+          "average_precision": 0.5357350485243848,
+          "roc_auc": 0.9776007027230519,
+          "brier_score": 0.0005662868832244021,
+          "fit_and_score_seconds": 0.4695659999997588
+        }
+      ],
+      "mean_ap": 0.6268660650151414
+    },
+    "lr_10_unweighted": {
+      "folds": [
+        {
+          "train_rows": 79747,
+          "validation_rows": 39873,
+          "train_time_max": 58159.0,
+          "validation_time_min": 58160.0,
+          "fraud_cases": 52,
+          "average_precision": 0.561197308827821,
+          "roc_auc": 0.9265047626590531,
+          "brier_score": 0.0008862045221002759,
+          "fit_and_score_seconds": 0.22622219999902882
+        },
+        {
+          "train_rows": 119620,
+          "validation_rows": 39871,
+          "train_time_max": 75520.0,
+          "validation_time_min": 75522.0,
+          "fraud_cases": 111,
+          "average_precision": 0.7720779400188598,
+          "roc_auc": 0.9637892671343375,
+          "brier_score": 0.0009779932232151357,
+          "fit_and_score_seconds": 0.3235534000050393
+        },
+        {
+          "train_rows": 159491,
+          "validation_rows": 39873,
+          "train_time_max": 112553.0,
+          "validation_time_min": 112555.0,
+          "fraud_cases": 28,
+          "average_precision": 0.5352009471716311,
+          "roc_auc": 0.9771776347632792,
+          "brier_score": 0.0005690703659583277,
+          "fit_and_score_seconds": 0.4830911999961245
+        }
+      ],
+      "mean_ap": 0.6228253986727706
+    },
+    "lgbm_7": {
+      "folds": [
+        {
+          "train_rows": 79747,
+          "validation_rows": 39873,
+          "train_time_max": 58159.0,
+          "validation_time_min": 58160.0,
+          "fraud_cases": 52,
+          "average_precision": 0.7524492503884604,
+          "roc_auc": 0.9404773863037091,
+          "brier_score": 0.0014103774800130078,
+          "fit_and_score_seconds": 2.19448569999804
+        },
+        {
+          "train_rows": 119620,
+          "validation_rows": 39871,
+          "train_time_max": 75520.0,
+          "validation_time_min": 75522.0,
+          "fraud_cases": 111,
+          "average_precision": 0.8246055200522138,
+          "roc_auc": 0.9892272554244386,
+          "brier_score": 0.004579772901856524,
+          "fit_and_score_seconds": 3.1179585000063526
+        },
+        {
+          "train_rows": 159491,
+          "validation_rows": 39873,
+          "train_time_max": 112553.0,
+          "validation_time_min": 112555.0,
+          "fraud_cases": 28,
+          "average_precision": 0.6423002813363792,
+          "roc_auc": 0.9792293351020921,
+          "brier_score": 0.010221658276221136,
+          "fit_and_score_seconds": 4.165037300001131
+        }
+      ],
+      "mean_ap": 0.7397850172590178
+    },
+    "lgbm_31": {
+      "folds": [
+        {
+          "train_rows": 79747,
+          "validation_rows": 39873,
+          "train_time_max": 58159.0,
+          "validation_time_min": 58160.0,
+          "fraud_cases": 52,
+          "average_precision": 0.7533241211675824,
+          "roc_auc": 0.8701069497539952,
+          "brier_score": 0.00041609396968529335,
+          "fit_and_score_seconds": 2.510025100003986
+        },
+        {
+          "train_rows": 119620,
+          "validation_rows": 39871,
+          "train_time_max": 75520.0,
+          "validation_time_min": 75522.0,
+          "fraud_cases": 111,
+          "average_precision": 0.8161509892204611,
+          "roc_auc": 0.9830541809415048,
+          "brier_score": 0.0010139882744542143,
+          "fit_and_score_seconds": 4.0465440999978455
+        },
+        {
+          "train_rows": 159491,
+          "validation_rows": 39873,
+          "train_time_max": 112553.0,
+          "validation_time_min": 112555.0,
+          "fraud_cases": 28,
+          "average_precision": 0.6477304183616318,
+          "roc_auc": 0.9868096014914938,
+          "brier_score": 0.0008455090824126467,
+          "fit_and_score_seconds": 5.961053099999845
+        }
+      ],
+      "mean_ap": 0.7390685095832251
+    }
+  },
+  "selected": "lgbm_7",
+  "calibration_rows": 21362,
+  "policy_rows": 21360,
+  "calibration_time_max": 142280.0,
+  "policy_time_min": 142281.0,
+  "test_rows": 42721,
+  "test_fraud_cases": 52,
+  "raw_test": {
+    "average_precision": 0.7567846990355542,
+    "roc_auc": 0.9787981095985736,
+    "brier_score": 0.006663625834543733
+  },
+  "calibrated_test": {
+    "average_precision": 0.7567846990355542,
+    "roc_auc": 0.9787981095985736,
+    "brier_score": 0.0004240999835835495
+  },
+  "validation_selected_threshold": 0.053569374580528344,
+  "validation_relative_cost": 82.0,
+  "test_confusion": {
+    "tn": 42608,
+    "fp": 61,
+    "fn": 13,
+    "tp": 39
+  },
+  "cost_sensitivity": [
+    {
+      "fn_to_fp_relative_weight": 5,
+      "validation_threshold": 0.15282208650079715,
+      "validation_relative_cost": 27.0,
+      "test_false_positive": 15,
+      "test_false_negative": 13,
+      "test_relative_cost": 80
+    },
+    {
+      "fn_to_fp_relative_weight": 10,
+      "validation_threshold": 0.15282208650079715,
+      "validation_relative_cost": 47.0,
+      "test_false_positive": 15,
+      "test_false_negative": 13,
+      "test_relative_cost": 145
+    },
+    {
+      "fn_to_fp_relative_weight": 20,
+      "validation_threshold": 0.053569374580528344,
+      "validation_relative_cost": 82.0,
+      "test_false_positive": 61,
+      "test_false_negative": 13,
+      "test_relative_cost": 321
+    },
+    {
+      "fn_to_fp_relative_weight": 50,
+      "validation_threshold": 0.053569374580528344,
+      "validation_relative_cost": 172.0,
+      "test_false_positive": 61,
+      "test_false_negative": 13,
+      "test_relative_cost": 711
+    },
+    {
+      "fn_to_fp_relative_weight": 100,
+      "validation_threshold": 0.008612412643624274,
+      "validation_relative_cost": 311.0,
+      "test_false_positive": 220,
+      "test_false_negative": 11,
+      "test_relative_cost": 1320
+    }
+  ],
+  "limitations": [
+    "Previously inspected two-day 2013 dataset; exploratory reuse, not a fresh external validation.",
+    "Small numbers of frauds per window; no account identifiers or longer-period stability.",
+    "Calibration is measured on this period only; it does not establish current or deployment calibration.",
+    "Costs are illustrative; serving artifact and original benchmark remain unchanged."
+  ]
+}
