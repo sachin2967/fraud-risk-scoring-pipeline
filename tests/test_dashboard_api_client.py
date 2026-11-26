@@ -1,7 +1,5 @@
 """Tests for the server-side Streamlit-to-FastAPI client."""
 
-import os
-
 import pytest
 
 from streamlit_app import api_client
