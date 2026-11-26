@@ -43,10 +43,10 @@ services:
     build: .
     command: ["streamlit", "run", "streamlit_app/app.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.headless=true"]
     environment:
-      FRAUD_DATA_DIR: /app/var/data
-      FRAUD_MODEL_DIR: /app/var/models
-      FRAUD_MODEL_PATH: /app/var/models/credit_card_fraud_model.joblib
-      FRAUD_REPORT_PATH: /app/var/benchmark_report.json
+      FRAUD_API_URL: http://fraud-api:8000
+      # Server-side only: Streamlit forwards this to FastAPI; it is never sent to browsers.
+      FRAUD_API_KEY: ${FRAUD_API_KEY:-}
+      FRAUD_API_TIMEOUT_SECONDS: ${FRAUD_API_TIMEOUT_SECONDS:-5}
     ports:
       - "127.0.0.1:${FRAUD_DASHBOARD_PORT:-8510}:8501"
     volumes:
