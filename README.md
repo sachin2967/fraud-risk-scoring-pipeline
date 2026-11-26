@@ -31,14 +31,21 @@ With the pinned OpenML Parquet checksum and seed 42, the latest run selected sta
 
 The 100-call warmed, in-process single-row model latency p95 was **1.43 ms** on the machine used for this run. This does not establish an API or deployment latency SLA.
 
-Start the API and dashboard in separate terminals:
+Start the API and dashboard in separate terminals. The dashboard now calls FastAPI for readiness, benchmark metrics and every score request; it does not load the model or run inference itself.
 
 ```powershell
+# Terminal 1
 uvicorn api.app:app --host 127.0.0.1 --port 8000
+
+# Terminal 2
+$env:FRAUD_API_URL = "http://127.0.0.1:8000"
+# If the API is configured with FRAUD_API_KEY, set the same key in this
+# server-side Streamlit process. Never put it in browser code or a URL.
+$env:FRAUD_API_KEY = "<same-server-side-api-key>"
 streamlit run streamlit_app/app.py
 ```
 
-The API docs are at `/docs`. `POST /api/score` accepts the 28 anonymized values in `pca_features` plus the source `amount` value. The uncalibrated score is not a transaction authorization; action labels are illustrative. Latency shown by the API and dashboard is the in-process model call only and is not an end-to-end SLA.
+The API docs are at `/docs`. `POST /api/score` accepts the 28 anonymized values in `pca_features` plus the source `amount` value. Dashboard requests use the same API authentication, idempotency and SQLite ledger as other clients. A successful score displays its persisted prediction ID; the label endpoint can later attach the outcome. The uncalibrated score is not a transaction authorization; action labels are illustrative. Latency shown is the in-process model call only and is not an end-to-end SLA.
 
 ## Docker demo
 
@@ -46,7 +53,7 @@ The API docs are at `/docs`. `POST /api/score` accepts the 28 anonymized values 
 docker compose up --build
 ```
 
-The one-shot training service downloads and evaluates the benchmark, then persists the report, model, and raw data in a named volume. The API and dashboard are published on loopback (`8010` and `8510` by default).
+The one-shot training service downloads and evaluates the benchmark, then persists the report, model, and raw data in a named volume. The API and dashboard are published on loopback (`8010` and `8510` by default). The dashboard talks to `http://fraud-api:8000` over the internal Compose network. If you configure `FRAUD_API_KEY`, Compose passes it to both server processes; Streamlit forwards it server-side and never exposes it to the browser. For production mode, also provide the persistent state path and trusted model SHA-256 as documented below.
 
 ## Validation
 
@@ -76,7 +83,11 @@ workload, and is not a cloud/SLA benchmark. The historical modeling limits still
 python -m pytest tests/ -v
 ```
 
-The test suite checks split boundaries, validation-only threshold selection, API input contracts, and the retained synthetic-data utilities. Synthetic generator tests are not evidence about the real-data model. The CI job does not download third-party training data; a local benchmark run is required to produce the real model artifact.
+The test suite checks split boundaries, validation-only threshold selection, API input contracts, dashboard API authentication/error handling, idempotent persisted scoring and delayed-label export. The CI job does not download third-party training data; a local benchmark run is required to produce the real model artifact.
+
+### Legacy synthetic prototype
+
+The older `src/models/fraud_detector.py`, `src/features/pipeline.py` and synthetic-data utilities are retained as an educational prototype and compatibility/test material. They are not imported by the active FastAPI or Streamlit serving path and their synthetic metrics must not be presented as results of the ULB / Worldline real-data benchmark. The active inference path is the persisted artifact created by `scripts/evaluate_openml_benchmark.py`, loaded by `api/app.py`, and called by the dashboard over HTTP.
 
 ## Limitations and responsible use
 
