@@ -7,6 +7,7 @@ import os
 import pickle
 import sqlite3
 import time
+from functools import lru_cache
 from pathlib import Path
 
 import joblib
@@ -69,8 +70,13 @@ except (
     artifact = None
 
 
+@lru_cache(maxsize=8)
+def store_for_path(path: Path) -> DecisionStore:
+    return DecisionStore(path)
+
+
 def get_store() -> DecisionStore:
-    return DecisionStore(
+    return store_for_path(
         Path(os.getenv("FRAUD_STATE_PATH", ROOT / "var" / "decisions.sqlite3"))
     )
 

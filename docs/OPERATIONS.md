@@ -20,6 +20,9 @@ different payloads sharing an ID conflict. Successful results are committed firs
 The model score stays in [0,1]; a decision cutoff of 2.0 represents the all-approve
 baseline. Validation cost selection includes that option even for scores exactly 1.
 Failed inference/storage returns 503; callers may retry the same identity/payload.
+Each API process queues local writers with a bounded wait. SQLite's immediate
+transaction continues to coordinate writes across processes. Connections use
+`synchronous=FULL` for the commit-before-acknowledge guarantee.
 
 ## Labels, exports and recovery
 
