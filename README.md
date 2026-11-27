@@ -52,6 +52,29 @@ Local HTTP replay (300 requests, concurrency 4, durable writes): about 68.8 req/
 P95 177.7 ms, and predictions and labels survived a forced process restart. That
 **did not meet a 50 ms P95 target**; it is a laptop measurement, not a cloud SLA.
 
+### HTTP latency follow-up
+
+The original verifier replayed the same 300 historical requests at concurrency four
+on each branch, three times per branch, using the same trained model artifact.
+The table shows the median of the three measurements for each metric.
+
+| Local replay | P50 | P95 | P99 | Requests/s |
+| --- | ---: | ---: | ---: | ---: |
+| Baseline | 8.73 ms | 43.74 ms | 141.42 ms | 246.6 |
+| Process-local writer queue | 14.41 ms | 19.15 ms | 23.50 ms | 265.2 |
+
+P50 increased and P95 decreased. The paired baseline runs also met the 50 ms P95
+target on this host.
+
+Timing instrumentation identified SQLite writer acquisition as the largest
+measured source of variability within the decision transaction. The patch queues
+competing writes inside the API process. SQLite still uses an immediate transaction
+and full synchronous commits. All runs checked identical retry responses and
+recovery after an ungraceful process restart. The optimized branch stayed below the
+50 ms P95 target in all three runs.
+See the [replay report](reports/http_latency_replay.json) for all runs, commands and
+host details. This is a short, single-host historical replay.
+
 ## Architecture
 
 ```mermaid

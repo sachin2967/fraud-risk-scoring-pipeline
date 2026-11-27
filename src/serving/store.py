@@ -7,9 +7,13 @@ is returned only after commit. SQLite is not a multi-host feature store or HA se
 import hashlib
 import json
 import sqlite3
+from contextlib import closing, contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
+from threading import Lock
 from uuid import uuid4
+
+SQLITE_TIMEOUT_SECONDS = 5
 
 
 class ConflictError(ValueError):
@@ -23,12 +27,16 @@ def utc_now() -> str:
 class DecisionStore:
     def __init__(self, path: Path):
         self.path = path
+        # Queue local writers in Python so they do not each incur SQLite busy
+        # retries. BEGIN IMMEDIATE still coordinates writes across processes.
+        self._write_lock = Lock()
 
     def connect(self):
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        connection = sqlite3.connect(self.path, timeout=5, isolation_level=None)
+        connection = sqlite3.connect(
+            self.path, timeout=SQLITE_TIMEOUT_SECONDS, isolation_level=None
+        )
         connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA busy_timeout=5000")
         connection.execute("PRAGMA synchronous=FULL")
         connection.execute("""CREATE TABLE IF NOT EXISTS decisions (
             transaction_id TEXT PRIMARY KEY, prediction_id TEXT UNIQUE NOT NULL,
@@ -38,89 +46,92 @@ class DecisionStore:
             label_source TEXT)""")
         return connection
 
-    def ready(self):
-        connection = self.connect()
+    @contextmanager
+    def _writer_connection(self):
+        if not self._write_lock.acquire(timeout=SQLITE_TIMEOUT_SECONDS):
+            raise sqlite3.OperationalError("Local writer queue timed out.")
         try:
+            with closing(self.connect()) as connection:
+                yield connection
+        finally:
+            self._write_lock.release()
+
+    def ready(self):
+        with self._writer_connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
             connection.execute("ROLLBACK")
-        finally:
-            connection.close()
 
     def decide(self, request: dict, predict):
         canonical = json.dumps(
             request, sort_keys=True, separators=(",", ":"), allow_nan=False
         )
         digest = hashlib.sha256(canonical.encode()).hexdigest()
-        connection = self.connect()
-        try:
-            connection.execute("BEGIN IMMEDIATE")
-            row = connection.execute(
-                "SELECT * FROM decisions WHERE transaction_id = ?",
-                (request["transaction_id"],),
-            ).fetchone()
-            if row:
-                if row["request_hash"] != digest:
-                    raise ConflictError(
-                        "Transaction ID already belongs to a different request."
-                    )
-                response = json.loads(row["response_json"])
+        with self._writer_connection() as connection:
+            try:
+                connection.execute("BEGIN IMMEDIATE")
+                row = connection.execute(
+                    "SELECT * FROM decisions WHERE transaction_id = ?",
+                    (request["transaction_id"],),
+                ).fetchone()
+                if row:
+                    if row["request_hash"] != digest:
+                        raise ConflictError(
+                            "Transaction ID already belongs to a different request."
+                        )
+                    response = json.loads(row["response_json"])
+                    connection.execute("COMMIT")
+                    return response
+                # Keep inference inside the transaction for exact retry semantics in this
+                # small pilot; publish the resulting concurrency/throughput limitation.
+                response = predict()
+                created_at = utc_now()
+                response.update(prediction_id=uuid4().hex, created_at=created_at)
+                connection.execute(
+                    """INSERT INTO decisions
+                    (transaction_id,prediction_id,request_hash,request_json,response_json,created_at)
+                    VALUES (?,?,?,?,?,?)""",
+                    (
+                        request["transaction_id"],
+                        response["prediction_id"],
+                        digest,
+                        canonical,
+                        json.dumps(response, allow_nan=False),
+                        created_at,
+                    ),
+                )
                 connection.execute("COMMIT")
                 return response
-            # Keep inference inside the transaction for exact retry semantics in this
-            # small pilot; publish the resulting concurrency/throughput limitation.
-            response = predict()
-            created_at = utc_now()
-            response.update(prediction_id=uuid4().hex, created_at=created_at)
-            connection.execute(
-                """INSERT INTO decisions
-                (transaction_id,prediction_id,request_hash,request_json,response_json,created_at)
-                VALUES (?,?,?,?,?,?)""",
-                (
-                    request["transaction_id"],
-                    response["prediction_id"],
-                    digest,
-                    canonical,
-                    json.dumps(response, allow_nan=False),
-                    created_at,
-                ),
-            )
-            connection.execute("COMMIT")
-            return response
-        except BaseException:
-            if connection.in_transaction:
-                connection.execute("ROLLBACK")
-            raise
-        finally:
-            connection.close()
+            except BaseException:
+                if connection.in_transaction:
+                    connection.execute("ROLLBACK")
+                raise
 
     def label(self, prediction_id: str, label: int, source: str):
-        connection = self.connect()
-        try:
-            connection.execute("BEGIN IMMEDIATE")
-            row = connection.execute(
-                "SELECT * FROM decisions WHERE prediction_id = ?", (prediction_id,)
-            ).fetchone()
-            if row is None:
-                raise KeyError(prediction_id)
-            if row["label"] is not None:
-                if row["label"] != label or row["label_source"] != source:
-                    raise ConflictError(
-                        "A conflicting label is already recorded; correction requires audit."
+        with self._writer_connection() as connection:
+            try:
+                connection.execute("BEGIN IMMEDIATE")
+                row = connection.execute(
+                    "SELECT * FROM decisions WHERE prediction_id = ?", (prediction_id,)
+                ).fetchone()
+                if row is None:
+                    raise KeyError(prediction_id)
+                if row["label"] is not None:
+                    if row["label"] != label or row["label_source"] != source:
+                        raise ConflictError(
+                            "A conflicting label is already recorded; correction requires audit."
+                        )
+                else:
+                    connection.execute(
+                        """UPDATE decisions SET label=?, label_available_at=?,
+                        label_source=? WHERE prediction_id=?""",
+                        (label, utc_now(), source, prediction_id),
                     )
-            else:
-                connection.execute(
-                    """UPDATE decisions SET label=?, label_available_at=?,
-                    label_source=? WHERE prediction_id=?""",
-                    (label, utc_now(), source, prediction_id),
-                )
-            connection.execute("COMMIT")
-            return {"prediction_id": prediction_id, "label": label, "source": source}
-        except BaseException:
-            if connection.in_transaction:
-                connection.execute("ROLLBACK")
-            raise
-        finally:
-            connection.close()
+                connection.execute("COMMIT")
+                return {"prediction_id": prediction_id, "label": label, "source": source}
+            except BaseException:
+                if connection.in_transaction:
+                    connection.execute("ROLLBACK")
+                raise
 
     def export(self, after: int = 0, limit: int = 1000):
         connection = self.connect()
