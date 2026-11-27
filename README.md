@@ -70,7 +70,8 @@ Timing instrumentation identified SQLite writer acquisition as the largest
 measured source of variability within the decision transaction. The patch queues
 competing writes inside the API process. SQLite still uses an immediate transaction
 and full synchronous commits. All runs checked identical retry responses and
-recovery after an ungraceful process restart. The optimized branch was below the 50 ms P95 target in 3 of the three runs.
+recovery after an ungraceful process restart. The optimized branch stayed below the
+50 ms P95 target in all three runs.
 See the [replay report](reports/http_latency_replay.json) for all runs, commands and
 host details. This is a short, single-host historical replay.
 
