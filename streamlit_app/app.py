@@ -1,71 +1,123 @@
-"""Streamlit cockpit for the real-data card-fraud benchmark."""
+"""Streamlit cockpit for the real-data card-fraud benchmark.
 
-import json
-import os
-import time
-from pathlib import Path
+All scoring goes through FastAPI so dashboard requests share authentication,
+idempotency, durable storage and delayed-label handling with other API clients.
+"""
 
-import joblib
 import numpy as np
-import pandas as pd
 import streamlit as st
 
-ROOT = Path(__file__).resolve().parent.parent
-MODEL_PATH = Path(os.environ.get("FRAUD_MODEL_PATH", ROOT / "models" / "credit_card_fraud_model.joblib"))
-REPORT_PATH = Path(os.environ.get("FRAUD_REPORT_PATH", ROOT / "real_data_benchmark_report.json"))
+from streamlit_app.api_client import (
+    APIClientError,
+    get_benchmark,
+    get_readiness,
+    score_transaction,
+)
 
 st.set_page_config(page_title="Card Fraud Risk Lab", page_icon="💳", layout="wide")
 st.title("💳 Real-Data Card Fraud Risk Lab")
 st.caption("ULB / Worldline public benchmark · anonymized PCA features · 2013 data")
 
 try:
-    artifact = joblib.load(MODEL_PATH)
-    report = json.loads(REPORT_PATH.read_text(encoding="utf-8"))
-    warmup = pd.DataFrame(
-        [[0.0] * len(artifact["feature_names"])], columns=artifact["feature_names"]
+    readiness = get_readiness()
+    report = get_benchmark()
+except APIClientError as exc:
+    st.error(f"Scoring service unavailable: {exc}")
+    st.info(
+        "Start FastAPI first and configure FRAUD_API_URL. In Docker Compose, "
+        "the dashboard uses the internal fraud-api service address."
     )
-    artifact["model"].predict_proba(warmup)
-except (FileNotFoundError, OSError, EOFError, KeyError, json.JSONDecodeError):
-    st.error("Real-data model artifacts are missing. Run `python scripts/evaluate_openml_benchmark.py` first.")
     st.stop()
 
 metrics = report["test_metrics"]
 summary = st.columns(4)
 summary[0].metric("Held-out PR-AUC", f"{metrics['average_precision']:.4f}")
-summary[1].metric("Fraud prevalence", f"{metrics['prevalence_baseline_average_precision']:.3%}")
+summary[1].metric(
+    "Fraud prevalence", f"{metrics['prevalence_baseline_average_precision']:.3%}"
+)
 summary[2].metric("ROC-AUC", f"{metrics['roc_auc']:.4f}")
-summary[3].metric("Model threshold", f"{artifact['threshold']:.5f}")
+summary[3].metric("Model threshold", f"{report['model']['threshold']:.5f}")
 
-st.info("This model is trained on real labeled historical card transactions. The dataset is from 2013 and is not UPI data or evidence of current Indian payment performance. The source does not document Amount's currency, so the dashboard does not relabel it as INR.")
+st.success(
+    f"Connected to scoring API · model {readiness['model_version'][:12]} · "
+    f"feature schema {readiness['feature_version']}"
+)
+st.info(
+    "This model is trained on real labeled historical card transactions. The "
+    "dataset is from 2013 and is not UPI data or evidence of current Indian "
+    "payment performance. The source does not document Amount's currency, so "
+    "the dashboard does not relabel it as INR."
+)
 st.subheader("Score a transaction feature vector")
-st.write("Enter the dataset's anonymized PCA features V1–V28. These values have no direct business interpretation.")
+st.write(
+    "Enter the dataset's anonymized PCA features V1–V28. These values have no "
+    "direct business interpretation. Scoring is performed by FastAPI and "
+    "successfully committed predictions are stored in its SQLite ledger."
+)
 
 with st.form("score_transaction"):
     transaction_id = st.text_input("Transaction ID", "TXN_DEMO_001")
-    amount = st.number_input("Transaction amount (source unit)", min_value=0.0, value=1499.0, step=100.0, format="%.2f")
-    raw = st.text_area("V1–V28, comma separated", ",".join(["0"] * 28), height=80)
+    amount = st.number_input(
+        "Transaction amount (source unit)",
+        min_value=0.0,
+        max_value=1_000_000.0,
+        value=1499.0,
+        step=100.0,
+        format="%.2f",
+    )
+    raw = st.text_area(
+        "V1–V28, comma separated", ",".join(["0"] * 28), height=80
+    )
     submitted = st.form_submit_button("Score risk", type="primary")
 
 if submitted:
     try:
-        values = np.asarray([float(value.strip()) for value in raw.split(",")], dtype=np.float64)
+        if not transaction_id or not transaction_id.strip():
+            raise ValueError("Transaction ID is required.")
+        values = np.asarray(
+            [float(value.strip()) for value in raw.split(",")], dtype=np.float64
+        )
         if len(values) != 28 or not np.isfinite(values).all():
             raise ValueError("Enter exactly 28 finite numeric values.")
-        features = pd.DataFrame(
-            [np.concatenate([values, [amount]])], columns=artifact["feature_names"]
+        result = score_transaction(
+            {
+                "transaction_id": transaction_id.strip(),
+                "amount": amount,
+                "pca_features": values.tolist(),
+            }
         )
-        started = time.perf_counter()
-        probability = float(artifact["model"].predict_proba(features)[0, 1])
-        latency_ms = (time.perf_counter() - started) * 1000
-        threshold = float(artifact["threshold"])
-        decision = "REVIEW_OR_STEP_UP" if probability >= threshold else "APPROVE_DEMO_ONLY"
         left, right = st.columns(2)
-        left.metric("Uncalibrated risk score (0–1)", f"{probability:.4f}")
-        right.metric("Live model latency", f"{latency_ms:.2f} ms", help="In-process prediction only; excludes HTTP and infrastructure.")
-        st.metric("Recommended action", decision)
-        st.caption(f"Transaction {transaction_id} · {amount:,.2f} source units · currency not documented · validation-selected cost threshold")
+        left.metric(
+            "Uncalibrated risk score (0–1)",
+            f"{result['fraud_risk_score']:.4f}",
+        )
+        right.metric(
+            "Model inference latency",
+            f"{result['model_latency_ms']:.2f} ms",
+            help="In-process model prediction only; excludes HTTP and infrastructure.",
+        )
+        st.metric("Recommended action", result["decision"])
+        st.caption(
+            f"Transaction {result['transaction_id']} · prediction "
+            f"{result['prediction_id']} · {amount:,.2f} source units · "
+            "currency not documented"
+        )
+        st.caption(
+            "The score is uncalibrated. The demo action is not a payment "
+            "authorization. The prediction has been persisted by the API."
+        )
     except ValueError as exc:
         st.error(str(exc))
+    except APIClientError as exc:
+        st.error(f"Scoring request failed: {exc}")
 
 with st.expander("Evaluation protocol and limitations"):
-    st.json({"dataset": report["dataset"], "split": report["split"], "threshold_policy": report["model"], "test_metrics": metrics, "limitations": report["limitations"]})
+    st.json(
+        {
+            "dataset": report["dataset"],
+            "split": report["split"],
+            "threshold_policy": report["model"],
+            "test_metrics": metrics,
+            "limitations": report["limitations"],
+        }
+    )

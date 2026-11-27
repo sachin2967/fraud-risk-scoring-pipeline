@@ -21,6 +21,23 @@ The model score stays in [0,1]; a decision cutoff of 2.0 represents the all-appr
 baseline. Validation cost selection includes that option even for scores exactly 1.
 Failed inference/storage returns 503; callers may retry the same identity/payload.
 
+## Dashboard integration
+
+The Streamlit process is an API client, not a second model-serving process. Locally,
+set `FRAUD_API_URL=http://127.0.0.1:8000` before starting Streamlit. If API
+authentication is enabled, set the same `FRAUD_API_KEY` in the Streamlit server
+environment. The key is added to server-to-server HTTP headers and is never embedded
+in browser code, a query string or a client-side request. Set
+`FRAUD_API_TIMEOUT_SECONDS` to adjust the bounded request timeout (default 5 seconds).
+
+Docker Compose configures the dashboard to use `http://fraud-api:8000` on the
+private Compose network and passes the optional API key to both services. Keep
+both published ports loopback-only. A dashboard score now uses the same API input
+validation, authentication, idempotency and durable SQLite ledger as any other
+caller. Its displayed prediction ID can be used with the delayed-label endpoint.
+If the API is unavailable or not ready, the dashboard reports that condition
+instead of falling back to local model inference.
+
 ## Labels, exports and recovery
 
 Attach labels through `POST /api/predictions/{prediction_id}/label` with integer
