@@ -40,7 +40,7 @@ def _request(method: str, path: str, *, payload: dict | None = None) -> dict:
             raise APIClientError(
                 str(detail or f"Scoring API returned HTTP {response.status_code}.")
             )
-        if not isinstance(body, dict):
+        if not isinstance(body, dict) or not body:
             raise APIClientError("Scoring API returned an unexpected response.")
         return body
     except requests.RequestException as exc:
@@ -59,4 +59,14 @@ def get_benchmark() -> dict:
 
 
 def score_transaction(payload: dict) -> dict:
-    return _request("POST", "/api/score", payload=payload)
+    result = _request("POST", "/api/score", payload=payload)
+    fields = {
+        "transaction_id": str,
+        "prediction_id": str,
+        "decision": str,
+        "fraud_risk_score": (int, float),
+        "model_latency_ms": (int, float),
+    }
+    if any(not isinstance(result.get(name), kind) for name, kind in fields.items()):
+        raise APIClientError("Scoring API returned an incomplete prediction.")
+    return result

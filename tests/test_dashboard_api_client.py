@@ -22,7 +22,15 @@ def test_score_request_uses_server_side_api_key(monkeypatch):
     def fake_request(session, method, url, **kwargs):
         assert not session.trust_env
         captured.update(method=method, url=url, **kwargs)
-        return FakeResponse({"prediction_id": "abc", "fraud_risk_score": 0.2})
+        return FakeResponse(
+            {
+                "prediction_id": "abc",
+                "transaction_id": "TXN_1",
+                "decision": "approve",
+                "fraud_risk_score": 0.2,
+                "model_latency_ms": 1.0,
+            }
+        )
 
     monkeypatch.setattr(api_client.requests.Session, "request", fake_request)
     result = api_client.score_transaction({"transaction_id": "TXN_1"})
@@ -56,3 +64,27 @@ def test_connection_error_is_safe_and_actionable(monkeypatch):
     monkeypatch.setattr(api_client.requests.Session, "request", fail)
     with pytest.raises(api_client.APIClientError, match="Cannot reach the scoring API"):
         api_client.get_benchmark()
+
+
+def test_success_with_invalid_json_is_a_contract_error(monkeypatch):
+    class InvalidJSONResponse(FakeResponse):
+        def json(self):
+            raise ValueError("invalid JSON")
+
+    monkeypatch.setattr(
+        api_client.requests.Session,
+        "request",
+        lambda *args, **kwargs: InvalidJSONResponse(None),
+    )
+    with pytest.raises(api_client.APIClientError, match="unexpected response"):
+        api_client.get_readiness()
+
+
+def test_success_without_prediction_fields_is_a_contract_error(monkeypatch):
+    monkeypatch.setattr(
+        api_client.requests.Session,
+        "request",
+        lambda *args, **kwargs: FakeResponse({"prediction_id": "abc"}),
+    )
+    with pytest.raises(api_client.APIClientError, match="incomplete prediction"):
+        api_client.score_transaction({"transaction_id": "TXN_1"})
