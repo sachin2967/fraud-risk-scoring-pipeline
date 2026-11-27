@@ -102,8 +102,8 @@ python -m venv .venv && source .venv/bin/activate     # Windows: .\.venv\Scripts
 pip install -r requirements.txt
 make train        # downloads the pinned dataset, trains, writes report + model
 make api          # http://127.0.0.1:8000/docs
-make dashboard    # Streamlit cockpit
-make test         # 26 tests + lint
+make dashboard    # Streamlit cockpit, in a second terminal
+make test         # lint and tests
 ```
 
 The first training run downloads the public dataset and verifies its checksum. To work
@@ -118,6 +118,18 @@ docker compose up --build
 
 A one-shot training service builds the model into a named volume; the API and dashboard
 bind to loopback (`8010` and `8510` by default).
+
+### Dashboard scoring
+
+Keep FastAPI running while using Streamlit. Set `FRAUD_API_URL` if the API is
+running on a different address, and provide the same `FRAUD_API_KEY` to the
+Streamlit server when authentication is enabled.
+
+![Streamlit dashboard showing the durable scoring API's score and demo action](docs/images/fraud-scoring-demo.png)
+
+The dashboard sends scoring requests to FastAPI. A successful response includes
+the prediction ID from the durable ledger. The screenshot uses a held-out
+historical transaction with its amount, PCA features, and prediction ID masked.
 
 ### Score a transaction
 
@@ -162,7 +174,7 @@ Export a training-only reference for drift monitoring with
 | `api/app.py` | FastAPI application |
 | `streamlit_app/` | Demonstration dashboard |
 | `data/generate_dataset.py` | Legacy synthetic generator (kept as a utility only) |
-| `tests/` | 26 tests: split boundaries, selection, API contracts, retries, conflicts, failures, backup |
+| `tests/` | Split boundaries, selection, API and dashboard contracts, retries, conflicts, failures, backup |
 | `docs/` | Architecture, model card, operations |
 
 ## Limitations and responsible use
