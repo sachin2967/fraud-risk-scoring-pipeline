@@ -52,6 +52,28 @@ Local HTTP replay (300 requests, concurrency 4, durable writes): about 68.8 req/
 P95 177.7 ms, and predictions and labels survived a forced process restart. That
 **did not meet a 50 ms P95 target**; it is a laptop measurement, not a cloud SLA.
 
+### Exploratory stability and calibration
+
+The study selects a candidate on expanding windows inside the original training
+period. It uses separate chronological windows for calibration and policy selection.
+The test window has been inspected before, so this comparison is exploratory.
+
+The selected candidate was `lgbm_7`. These results do not change the
+serving artifact or the benchmark above.
+
+| Test scores | Average precision | ROC-AUC | Brier score |
+| --- | ---: | ---: | ---: |
+| Raw | 0.7568 | 0.9788 | 0.006664 |
+| Sigmoid calibration | 0.7568 | 0.9788 | 0.000424 |
+
+The [study report](stability_benchmark_report.json) includes fold results, the
+calibration and policy boundaries, and illustrative cost sensitivity. This short
+historical series cannot establish current fraud calibration or operating costs.
+
+```bash
+OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 python scripts/evaluate_stability.py
+```
+
 ## Architecture
 
 ```mermaid
