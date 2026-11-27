@@ -11,6 +11,10 @@ restart-safe decision process rather than a stateless function.
 > **Scope.** This is a real-data research benchmark and a single-host serving pilot,
 > not a production fraud service. The data is two days of anonymized 2013 transactions.
 > Nothing here validates current payment behavior, INR losses or live authorization.
+>
+> **Try it locally:** follow the [Quickstart](#quickstart), including the Docker and
+> dashboard-scoring steps, and view the [dashboard preview](docs/images/fraud-scoring-demo.png).
+> No public payment API or hosted fraud-scoring service is provided.
 
 ## Highlights
 
