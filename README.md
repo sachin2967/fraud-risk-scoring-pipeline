@@ -12,6 +12,10 @@ restart-safe decision process rather than a stateless function.
 > not a production fraud service. The data is two days of anonymized 2013 transactions.
 > Nothing here validates current payment behavior, INR losses or live authorization.
 
+![Card fraud scoring dashboard showing the built-in demo inputs](docs/images/fraud-scoring-demo.png)
+
+*Local Streamlit dashboard with the built-in demo transaction. The model is trained on the historical public card-fraud benchmark.*
+
 ## Highlights
 
 - **Leakage-aware evaluation:** chronological 70/15/15 split; `Time` is used only for
